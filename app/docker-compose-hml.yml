@@ -1,0 +1,44 @@
+services:
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./conf/default.conf:/etc/nginx/conf.d/default.conf   
+    depends_on:
+      - app
+    networks:
+      - todolist 
+
+  db:
+    image: postgres:latest
+    volumes: 
+      - ./instance:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=todolist
+      - POSTGRES_PASSWORD=todolist
+      - POSTGRES_DB=todolist
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"] # Verifica se o PostgreSQL está pronto
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - todolist
+
+  app:
+    build: 
+      context: ./
+      dockerfile: Dockerfile
+    image: todolist:hml 
+    volumes:
+      - ./instance:/app/instance
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - todolist
+
+networks:
+  todolist:
+
