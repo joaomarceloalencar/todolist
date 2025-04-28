@@ -1,0 +1,5 @@
+FLASK_APP=src/wsgi.py
+FLASK_ENV=development 
+DEV_DATABASE_URL='postgresql://todolist:todolist@localhost:5432/todolist'
+SECRET_KEY='sua_chave_secreta_para_desenvolvimento' # Defina uma chave para uso local
+PYTHONPATH=./src # Adicione o caminho para a pasta src localmente

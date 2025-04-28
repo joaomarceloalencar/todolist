@@ -1,0 +1,108 @@
+# docker-compose-dev.yml
+# Configuração para o ambiente de desenvolvimento local usando Docker Compose
+
+services:
+  # Serviço Nginx como proxy reverso
+  nginx:
+    image: nginx:latest # Usar latest é aceitável para dev
+    ports:
+      - "80:80" # Mapeia a porta 80 do host para a porta 80 do contêiner Nginx
+    volumes:
+      # Monta o arquivo de configuração local do Nginx no contêiner
+      - ./conf/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      # Garante que o Nginx só inicie após a aplicação e as migrações
+      app:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - todolist # Conecta o Nginx à rede da aplicação
+
+  # Serviço de Banco de Dados PostgreSQL
+  db:
+    image: postgres:latest # Usar latest é aceitável para dev
+    volumes:
+      # Persiste os dados do banco de dados em um volume local
+      - ./instance:/var/lib/postgresql/data
+    environment:
+      # Configurações iniciais do banco de dados
+      - POSTGRES_USER=todolist
+      - POSTGRES_PASSWORD=todolist
+      - POSTGRES_DB=todolist
+      # NOTA: Em produção, estas credenciais devem vir de um sistema de segredos!
+    healthcheck:
+      # Verifica se o banco de dados está pronto para aceitar conexões
+      test: ["CMD-SHELL", "pg_isready -U todolist"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - todolist # Conecta o DB à rede da aplicação
+    ports:
+      # Expõe a porta padrão do Postgres para acesso local (útil para ferramentas de DB)
+      - "5432:5432"
+
+  # Serviço da Aplicação Flask
+  app:
+    build:
+      # Constrói a imagem a partir do Dockerfile na pasta atual (assumindo que o Dockerfile está em ./app)
+      context: ./ # Ajuste se o Dockerfile estiver em outro lugar (ex: ./app)
+      dockerfile: Dockerfile
+    image: todolist:dev # Tag para a imagem de desenvolvimento
+    volumes:
+      # Monta o código fonte local no contêiner para desenvolvimento (live reloading)
+      - ./src:/app/src # Monta a pasta src local em /app/src no contêiner
+      # Monta a pasta de templates local
+      - ./templates:/app/templates # Ajuste o caminho se necessário
+      # Volume para a pasta instance (se necessário para a app)
+      - ./instance:/app/instance
+    environment:
+      # Variáveis de ambiente que a SUA APLICAÇÃO vai ler
+      DATABASE_URL: postgresql://todolist:todolist@db/todolist # URL do BD contêiner (nome do serviço 'db')
+      SECRET_KEY: ${SECRET_KEY} # Chave secreta (definir via .env ou export)
+      FLASK_ENV: development # Define o ambiente para a fábrica (config.py)
+      FLASK_APP: src/wsgi.py # Ponto de entrada da aplicação
+      PYTHONPATH: /app/src # Inclui /app/src no caminho de importação do Python
+      DEBUG: True # Habilita o modo debug do Flask para desenvolvimento
+    # O serviço 'app' depende do serviço 'migrate' ter terminado com sucesso
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - todolist # Conecta a App à rede
+    # O comando padrão (CMD do Dockerfile) que roda o Gunicorn será executado
+    # Em desenvolvimento, você pode querer usar o servidor de desenvolvimento do Flask
+    # ou Gunicorn com auto-reload. O Dockerfile atual usa Gunicorn.
+    # Se quiser usar o servidor de dev do Flask com reload:
+    # command: ["flask", "run", "--host=0.0.0.0", "--port=8000", "--debug", "--reload"]
+
+
+  # Serviço para rodar as migrações do banco de dados
+  migrate:
+    build:
+      # Usa o mesmo contexto e Dockerfile da aplicação
+      context: ./ # Ajuste se o Dockerfile estiver em outro lugar (ex: ./app)
+      dockerfile: Dockerfile
+    image: todolist:dev # Usa a mesma imagem construída
+    environment:
+      # Passa as mesmas variáveis de ambiente de BD que o serviço 'app' precisa
+      DATABASE_URL: postgresql://todolist:todolist@db/todolist
+      SECRET_KEY: ${SECRET_KEY} # Necessário para a app factory carregar a config
+      FLASK_ENV: development # Define o ambiente correto para carregar a config do BD
+      FLASK_APP: src/wsgi.py
+      PYTHONPATH: /app/src # Inclui /app/src no caminho de importação do Python
+    depends_on:
+      db:
+        condition: service_healthy # Depende do banco de dados estar saudável
+    networks:
+      - todolist # Conecta à rede
+    # COMANDO: Verifica se a pasta migrations existe e inicializa se não, depois roda o upgrade
+    # Este comando garante que o banco de dados esteja atualizado ao iniciar o ambiente
+    command: ["sh", "-c", "if [ ! -d 'migrations' ]; then echo 'Pasta migrations não encontrada. Inicializando Flask-Migrate...'; flask db init; fi; echo 'Rodando migrações do banco de dados...'; flask db upgrade"]
+    restart: "no" # Garante que este contêiner não tente reiniciar
+
+networks:
+  # Rede bridge padrão para os serviços se comunicarem
+  todolist:
+

@@ -1,51 +1,68 @@
-from flask import Flask, render_template, request, redirect, url_for 
+import os
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.exc import IntegrityError
+from flask_migrate import Migrate
 
-app = Flask(__name__,template_folder='templates')
+# Importa a configuração
+from .config import config_by_name
 
-# /// = relative path, //// = absolute path
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://todolist:todolist@db/todolist'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+# Inicializa a extensão SQLAlchemy.
+# Não passamos a instância 'app' aqui, pois será inicializada na fábrica.
+db = SQLAlchemy()
+# Se usar Flask-Migrate, inicialize-o aqui também:
+migrate = Migrate()
 
-class Todo(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100))
-    complete = db.Column(db.Boolean)
+def create_app(config_name=None):
+    """
+    Cria a instância da aplicação Flask usando o padrão Application Factory.
 
-try:
-    with app.app_context():
-        db.create_all()
-except IntegrityError as e:
-    print(f"Error: {e}")
+    Args:
+        config_name (str, optional): O nome da configuração a ser usada
+                                     ('development', 'homologation', 'production').
+                                     Se None, tenta ler da variável de ambiente FLASK_ENV.
+                                     Padrão: 'default' (development).
+    """
+    app = Flask(__name__,
+                instance_relative_config=True,
+                template_folder='../../templates') 
     
-@app.route('/')
-def home():
-    todo_list = Todo.query.all()
-    return render_template("base.html", todo_list=todo_list)
+    # Determina qual configuração carregar
+    if config_name is None:
+        config_name = os.environ.get('FLASK_ENV', 'default')
 
-@app.route("/add", methods=["POST"])
-def add():
-    title = request.form.get("title")
-    new_todo = Todo(title=title, complete=False)
-    db.session.add(new_todo)
-    db.session.commit()
-    return redirect(url_for("home"))
+    # Carrega a configuração a partir do objeto de configuração
+    app.config.from_object(config_by_name.get(config_name, config_by_name['default']))
 
-@app.route("/update/<int:todo_id>")
-def update(todo_id):
-    todo = Todo.query.filter_by(id=todo_id).first()
-    todo.complete = not todo.complete
-    db.session.commit()
-    return redirect(url_for("home"))
+    # Tenta carregar configuração de um arquivo config.py na pasta 'instance'
+    # (útil para configurações locais que não vão para o Git)
+    # app.config.from_pyfile('config.py', silent=True)
 
-@app.route("/delete/<int:todo_id>")
-def delete(todo_id):
-    todo = Todo.query.filter_by(id=todo_id).first()
-    db.session.delete(todo)
-    db.session.commit()
-    return redirect(url_for("home"))
+    # Inicializa as extensões com a instância 'app' criada
+    db.init_app(app)
+    migrate.init_app(app, db)
 
-def create_app():
+    # Importa e registra Blueprints.
+    # Assume que você tem um arquivo routes.py com um Blueprint chamado 'bp'.
+    from . import routes
+    app.register_blueprint(routes.bp)
+
+    # Opcional: Adicionar comandos de shell personalizados (ex: 'flask create-db')
+    # from .commands import custom_cli_commands # Assumindo que você crie commands.py
+    # app.cli.add_command(custom_cli_commands)
+
+
+    # O trecho db.create_all() e o try/except foram removidos daqui.
+    # A criação/atualização do esquema do banco de dados deve ser feita idealmente
+    # via scripts de migração (Alembic/Flask-Migrate) executados no pipeline CI/CD
+    # ou manualmente no ambiente de desenvolvimento. Para o exemplo do curso,
+    # você pode demonstrar rodar 'flask db upgrade' ou um script de setup inicial.
+
+
     return app
+
+# Este bloco __main__ é geralmente usado para rodar a aplicação localmente
+# durante o desenvolvimento. Em produção (com Gunicorn, por exemplo),
+# o create_app() será chamado pelo arquivo wsgi.py.
+# if __name__ == "__main__":
+#     app = create_app()
+#     app.run(debug=True) # Usar debug=True SOMENTE em desenvolvimento
