@@ -114,7 +114,7 @@ services:
       SECRET_KEY: ${SECRET_KEY} # Testes podem precisar da SECRET_KEY
       FLASK_ENV: development # Testes precisam saber o ambiente para carregar a config
       FLASK_APP: src/wsgi.py # Testes precisam saber onde está a app factory
-      PYTHONPATH: /app/src # Inclui /app/src no caminho de importação do Python
+      PYTHONPATH: /app # Inclui /app/src no caminho de importação do Python
       # pytest pode precisar de outras variáveis de ambiente, se houver
     depends_on:
       migrate:
