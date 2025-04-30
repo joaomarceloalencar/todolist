@@ -60,7 +60,8 @@ jobs:
       # O Docker Compose construirá a imagem da sua aplicação (todolist:dev)
       # O contexto de build é a pasta onde o Dockerfile está (assumimos ./app)
       - name: Build Docker images
-        run: docker compose -f todolist/app/docker-compose-dev.yml build # <=== CORRIGIDO: docker compose
+        # Caminho corrigido para o arquivo docker-compose-dev.yml
+        run: docker compose -f app/docker-compose-dev.yml build
 
       # Passo 5: Iniciar os serviços Docker Compose e executar os testes
       # Inicia os serviços 'db', 'migrate', 'tests' e aguarda o serviço 'tests' terminar.
@@ -70,14 +71,16 @@ jobs:
       #                         Se os testes falharem (pytest retorna != 0), este passo falhará.
       # -V: Remove volumes nomeados após a conclusão (limpeza)
       - name: Run Database Migrations and API Tests
-        run: docker compose -f todolist/app/docker-compose-dev.yml up --abort-on-container-exit --exit-code-from tests -V # <=== CORRIGIDO: docker compose
+        # Caminho corrigido para o arquivo docker-compose-dev.yml
+        run: docker compose -f app/docker-compose-dev.yml up --abort-on-container-exit --exit-code-from tests -V
 
       # Passo 6: Parar e remover os contêineres Docker Compose (limpeza)
       # Este passo é opcional se o anterior usar -V, mas é uma boa prática explícita.
       # Ele será executado mesmo que o passo anterior falhe (a menos que o workflow seja configurado para parar em falha).
       - name: Clean up Docker Compose environment
         if: always() # Garante que este passo rode mesmo se os testes falharem
-        run: docker compose -f todolist/app/docker-compose-dev.yml down -V --remove-orphans # <=== CORRIGIDO: docker compose
+        # Caminho corrigido para o arquivo docker-compose-dev.yml
+        run: docker compose -f app/docker-compose-dev.yml down -V --remove-orphans
 
       # Passo 7 (Opcional): Upload dos resultados da cobertura de código
       # Se você usou pytest-cov, pode gerar um relatório e fazer upload como artefato.
