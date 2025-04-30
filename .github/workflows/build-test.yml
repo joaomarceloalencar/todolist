@@ -23,14 +23,14 @@ jobs:
       # Para o ambiente de teste dentro do Docker Compose, a DATABASE_URL
       # apontará para o serviço 'db' (postgresql://user:password@db/dbname).
       # Esta URL já está configurada no docker-compose-dev.yml e no .env
-      # que será lido pelo docker-compose. Não precisamos defini-la explicitamente aqui
+      # que será lido pelo docker compose. Não precisamos defini-la explicitamente aqui
       # a menos que a config.py dependa de uma variável DIFERENTE para testes em CI.
       # Se sua config.py usa DEV_DATABASE_URL para o ambiente 'development',
       # e no contêiner de teste você quer usar o DB do compose ('db'),
       # você pode precisar definir DEV_DATABASE_URL aqui também.
       # Ex: DEV_DATABASE_URL: postgresql://todolist:todolist@db/todolist
       # Verifique como sua config.py carrega a URL do BD para o ambiente 'development'.
-      # PYTHONPATH é definido no docker-compose.yml
+      # PYTHONPATH é definido no docker-compose-dev.yml
 
     # Passos que serão executados neste job
     steps:
@@ -60,26 +60,24 @@ jobs:
       # O Docker Compose construirá a imagem da sua aplicação (todolist:dev)
       # O contexto de build é a pasta onde o Dockerfile está (assumimos ./app)
       - name: Build Docker images
-        # Caminho corrigido para o arquivo docker-compose-dev.yml
         run: docker compose -f app/docker-compose-dev.yml build
 
       # Passo 5: Iniciar os serviços Docker Compose e executar os testes
       # Inicia os serviços 'db', 'migrate', 'tests' e aguarda o serviço 'tests' terminar.
-      # --abort-on-container-exit: Interrompe a execução se qualquer contêiner sair.
+      # REMOVIDO: --abort-on-container-exit
       # --exit-code-from tests: Faz com que o comando docker compose up
       #                         saia com o mesmo código de saída do serviço 'tests'.
       #                         Se os testes falharem (pytest retorna != 0), este passo falhará.
       # -V: Remove volumes nomeados após a conclusão (limpeza)
       - name: Run Database Migrations and API Tests
-        # Caminho corrigido para o arquivo docker-compose-dev.yml
-        run: docker compose -f app/docker-compose-dev.yml up --abort-on-container-exit --exit-code-from tests -V
+        run: docker compose -f app/docker-compose-dev.yml up --exit-code-from tests -V
 
       # Passo 6: Parar e remover os contêineres Docker Compose (limpeza)
-      # Este passo é opcional se o anterior usar -V, mas é uma boa prática explícita.
+      # Este passo é essencial para limpar os serviços que não foram parados
+      # automaticamente (como db, app, nginx) após o serviço 'tests' sair.
       # Ele será executado mesmo que o passo anterior falhe (a menos que o workflow seja configurado para parar em falha).
       - name: Clean up Docker Compose environment
         if: always() # Garante que este passo rode mesmo se os testes falharem
-        # Caminho corrigido para o arquivo docker-compose-dev.yml
         run: docker compose -f app/docker-compose-dev.yml down -V --remove-orphans
 
       # Passo 7 (Opcional): Upload dos resultados da cobertura de código
