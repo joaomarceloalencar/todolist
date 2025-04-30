@@ -37,6 +37,11 @@ def create_app(config_name=None):
     # (útil para configurações locais que não vão para o Git)
     # app.config.from_pyfile('config.py', silent=True)
 
+    # --- DEBUG: Imprimir a URL do BD que está sendo usada ---
+    print(f"DEBUG: FLASK_ENV usado: {config_name}")
+    print(f"DEBUG: SQLALCHEMY_DATABASE_URI configurado: {app.config.get('SQLALCHEMY_DATABASE_URI')}")
+    # --- FIM DEBUG ---
+
     # Inicializa as extensões com a instância 'app' criada
     db.init_app(app)
     migrate.init_app(app, db)
