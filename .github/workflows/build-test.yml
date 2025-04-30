@@ -88,7 +88,8 @@ jobs:
       # Ele será executado mesmo que o Passo 7 (testes) falhe (a menos que o workflow seja configurado para parar em falha).
       - name: Clean up Docker Compose environment
         if: always() # Garante que este passo rode mesmo se os testes falharem
-        run: docker compose -f app/docker-compose-dev.yml down -V --remove-orphans
+        # Corrigido: Usar --volumes em vez de -V
+        run: docker compose -f app/docker-compose-dev.yml down --volumes --remove-orphans
 
       # Passo 9 (Opcional): Upload dos resultados da cobertura de código
       # Se você usou pytest-cov, pode gerar um relatório e fazer upload como artefato.
