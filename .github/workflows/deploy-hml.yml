@@ -25,6 +25,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }} # Opcional, se usar credenciais temporárias
       AWS_REGION: "us-east-1" # <--- Defina a região da AWS (ajuste conforme sua AWS Academy)
+      TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
 
       # Segredos da aplicação para HML (lidos dos GitHub Secrets)
       SECRET_KEY_HML: ${{ secrets.SECRET_KEY_HML }}
@@ -95,7 +96,7 @@ jobs:
       # Passo 6: Inicializa o Terraform
       # Navega para o diretório do Terraform e executa terraform init
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -backend-config="bucket=${TF_BUCKET}"
         working-directory: ${{ env.TERRAFORM_DIR }} # Executa o comando na pasta 'terraform'
 
       # Passo 7: Cria um plano de execução do Terraform (opcional, para visibilidade nos logs)
