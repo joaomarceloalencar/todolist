@@ -159,16 +159,4 @@ jobs:
             -vvv 
         working-directory: ${{ env.ANSIBLE_DIR }} # Executa o comando na pasta 'ansible'
 
-      # Passo 14: Aguardar a aplicação ficar acessível (Opcional)
-      # Pode adicionar um passo aqui para verificar se o endpoint HTTP está respondendo
-      # Ex: usando curl ou wait-for-it.sh
-
-      # Passo 15: Destruir a infraestrutura com Terraform (MUITO IMPORTANTE!)
-      # Este passo garante que os recursos sejam derrubados após o deploy
-      # Ele será executado mesmo que o playbook Ansible falhe (a menos que o workflow seja configurado para parar em falha).
-      # Use 'if: always()' para garantir a execução mesmo em caso de falha nos passos anteriores.
-      - name: Terraform Destroy
-        if: always() # Garante que este passo rode mesmo se os passos anteriores falharem
-        run: terraform destroy -auto-approve -input=false # -auto-approve destrói automaticamente
-        working-directory: ${{ env.TERRAFORM_DIR }} # Executa o comando na pasta 'terraform'
 
