@@ -64,7 +64,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          # terraform_version: "latest" # Opcional: fixar uma versão específica do Terraform
+          terraform_version: "latest" # Opcional: fixar uma versão específica do Terraform
 
       # Passo 4: Configura o ambiente Docker (incluindo Buildx)
       # Necessário para que o Ansible possa rodar comandos docker compose na instância remota
