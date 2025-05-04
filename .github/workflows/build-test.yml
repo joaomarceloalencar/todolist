@@ -1,0 +1,105 @@
+# Nome do workflow
+name: CI on Development
+
+# Gatilho do workflow: executa em pushes E pull requests para a branch 'development'
+on:
+  push:
+    branches:
+      - development
+  pull_request: # Gatilho para Pull Requests
+    branches:
+      - development
+
+# Define um único job chamado 'run-api-tests'
+jobs:
+  run-api-tests:
+    # Define o tipo de runner que o job será executado
+    runs-on: ubuntu-latest
+
+    # Define as variáveis de ambiente para o job.
+    # A SECRET_KEY deve ser armazenada como um GitHub Secret por segurança.
+    env:
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      # Para o ambiente de teste dentro do Docker Compose, a DATABASE_URL
+      # apontará para o serviço 'db' (postgresql://user:password@db/dbname).
+      # Esta URL já está configurada no docker compose-dev.yml e no .env
+      # que será lido pelo docker compose. Não precisamos defini-la explicitamente aqui
+      # a menos que a config.py dependa de uma variável DIFERENTE para testes em CI.
+      # Se sua config.py usa DEV_DATABASE_URL para o ambiente 'development',
+      # e no contêiner de teste você quer usar o DB do compose ('db'),
+      # você pode precisar definir DEV_DATABASE_URL aqui também.
+      # Ex: DEV_DATABASE_URL: postgresql://todolist:todolist@db/todolist
+      # Verifique como sua config.py carrega a URL do BD para o ambiente 'development'.
+      # PYTHONPATH é definido no docker compose-dev.yml
+
+    # Passos que serão executados neste job
+    steps:
+      # Passo 1: Faz o checkout do código do repositório
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Para pull requests, o checkout padrão pode não pegar a branch de origem corretamente.
+          # fetch-depth: 0 pega o histórico completo (necessário para alguns plugins como pytest-cov)
+          fetch-depth: 0
+
+      # Passo 2: Configura o ambiente Python.
+      # Embora o build Docker vá usar sua própria imagem Python,
+      # configurar Python no runner pode ser útil para comandos como docker compose
+      # ou scripts auxiliares que você possa adicionar no futuro.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x' # Use a versão Python que você está usando no seu projeto
+
+      # Passo 3: Configura o ambiente Docker (incluindo Buildx)
+      # Isso ajuda a garantir que o daemon Docker esteja rodando e acessível
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Passo 4: Construir as imagens Docker definidas no docker-compose-dev.yml
+      # O Docker Compose construirá a imagem da sua aplicação (todolist:dev)
+      # O contexto de build é a pasta onde o Dockerfile está (assumimos ./app)
+      - name: Build Docker images
+        run: docker compose -f app/docker-compose-dev.yml build
+
+      # Passo 5: Iniciar os serviços de infraestrutura e aplicação em segundo plano
+      # Inicia db, migrate, app e nginx em modo detached (-d).
+      # O serviço migrate rodará suas migrações e sairá (devido a restart: no).
+      # O serviço db e app continuarão rodando.
+      - name: Bring up Infrastructure and Application
+        run: docker compose -f app/docker-compose-dev.yml up -d db migrate app nginx
+
+      # Passo 6: Aguardar até que o banco de dados e a aplicação estejam saudáveis/prontos
+      # Embora o 'up -d' inicie, pode levar um tempo para os serviços estarem prontos.
+      # Podemos usar um loop simples ou uma ferramenta como 'wait-for-it.sh' ou 'dockerize'.
+      # Para simplificar, vamos confiar nas dependências do 'tests' no docker-compose.yml
+      # e no fato de que 'docker compose run' espera pelas dependências.
+
+      # Passo 7: Executar o serviço de testes como um comando one-off
+      # Executa o comando definido no serviço 'tests' (pytest) em um novo contêiner.
+      # --rm: Remove o contêiner após a execução.
+      # Este comando aguardará que as dependências do serviço 'tests' (db, migrate, app)
+      # estejam prontas antes de executar o comando 'pytest'.
+      - name: Run API Tests
+        run: docker compose -f app/docker-compose-dev.yml run --rm tests
+
+      # Passo 8: Parar e remover TODOS os contêineres Docker Compose (limpeza)
+      # Este passo é essencial para limpar todos os serviços que foram iniciados no Passo 5.
+      # Ele será executado mesmo que o Passo 7 (testes) falhe (a menos que o workflow seja configurado para parar em falha).
+      - name: Clean up Docker Compose environment
+        if: always() # Garante que este passo rode mesmo se os testes falharem
+        # Corrigido: Usar --volumes em vez de -V
+        run: docker compose -f app/docker-compose-dev.yml down --volumes --remove-orphans
+
+      # Passo 9 (Opcional): Upload dos resultados da cobertura de código
+      # Se você usou pytest-cov, pode gerar um relatório e fazer upload como artefato.
+      # O arquivo .coverage é gerado no WORKDIR do contêiner 'tests' (/app),
+      # mas o 'docker compose run --rm' o remove. Você precisará montar um volume
+      # no serviço 'tests' para persistir o arquivo de cobertura no runner.
+      # Ex: volumes: - .:/app # Monta o diretório atual do runner em /app no contêiner tests
+      # - name: Upload coverage report
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: coverage-report
+      #     path: .coverage # O arquivo de cobertura gerado pelo pytest-cov (ajuste o caminho se necessário)
+

@@ -102,6 +102,34 @@ services:
     command: ["sh", "-c", "if [ ! -d 'migrations' ]; then echo 'Pasta migrations não encontrada. Inicializando Flask-Migrate...'; flask db init; fi; echo 'Rodando migrações do banco de dados...'; flask db upgrade"]
     restart: "no" # Garante que este contêiner não tente reiniciar
 
+  # SERVIÇO PARA RODAR OS TESTES DE API
+  tests:
+    build:
+      context: ./ # Usa o mesmo contexto e Dockerfile da aplicação
+      dockerfile: Dockerfile
+    image: todolist:dev # Usa a mesma imagem construída
+    environment:
+      # Passa as variáveis de ambiente que os testes precisam para se conectar à app e ao DB
+      DATABASE_URL: postgresql://todolist:todolist@db/todolist # Testes precisam acessar o DB
+      SECRET_KEY: ${SECRET_KEY} # Testes podem precisar da SECRET_KEY
+      FLASK_ENV: development # Testes precisam saber o ambiente para carregar a config
+      FLASK_APP: src/wsgi.py # Testes precisam saber onde está a app factory
+      PYTHONPATH: /app # Inclui /app/src no caminho de importação do Python
+      # pytest pode precisar de outras variáveis de ambiente, se houver
+    depends_on:
+      migrate:
+        condition: service_completed_successfully # Garante que as migrações rodaram antes dos testes
+      # Opcional: Depender do app para garantir que a app esteja rodando (se os testes fizerem requisições HTTP reais)
+      # app:
+      #   condition: service_started
+    networks:
+      - todolist # Conecta à rede para acessar o DB e a app (se depender dela)
+    # O comando para rodar os testes (pytest)
+    command: ["pytest", "-v", "/app/tests/"] # Executa pytest na pasta tests
+    # Use este comando para cobertura:
+    # command: ["pytest", "--cov=src", "-v", "/app/tests/"]
+    restart: "no" # Garante que o contêiner de testes não tente reiniciar
+
 networks:
   # Rede bridge padrão para os serviços se comunicarem
   todolist:

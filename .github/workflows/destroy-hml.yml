@@ -1,0 +1,69 @@
+# Nome do workflow
+name: Destroy Homologation Infrastructure
+
+# Gatilho do workflow: acionado manualmente
+on:
+  workflow_dispatch: # Permite acionar o workflow manualmente na aba Actions do GitHub
+
+# Define um único job chamado 'destroy'
+jobs:
+  destroy:
+    # Define o tipo de runner que o job será executado
+    runs-on: ubuntu-latest
+
+    # Define o ambiente de deploy no GitHub (opcional, mas boa prática)
+    # Use o mesmo ambiente de deploy para aplicar regras de proteção e segredos
+    environment: homologation
+
+    # Define variáveis de ambiente para o job.
+    # Segredos são acessados usando ${{ secrets.NOME_DO_SEGREDO }}
+    env:
+      # Credenciais AWS (lidas dos GitHub Secrets)
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }} # Opcional, se usar credenciais temporárias
+      AWS_REGION: "us-east-1" # <--- Defina a região da AWS (ajuste conforme sua AWS Academy)
+      TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
+
+      # Variável para o caminho da pasta Terraform
+      TERRAFORM_DIR: "terraform"
+
+    # Passos que serão executados neste job
+    steps:
+      # Passo 1: Faz o checkout do código do repositório
+      # Necessário para acessar os arquivos Terraform e a configuração do backend
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Passo 2: Configura o ambiente Terraform
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          # terraform_version: "latest" # Opcional: fixar uma versão específica do Terraform
+          cli_config_credentials_token: ${{ secrets.GITHUB_TOKEN }} # Opcional: se usar Terraform Cloud/Enterprise
+
+      # Passo 3: Configura as credenciais AWS no runner
+      # Permite que o Terraform interaja com sua conta
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          aws-session-token: ${{ env.AWS_SESSION_TOKEN }} # Opcional, se usar credenciais temporárias
+
+
+      # Passo 4: Inicializa o Terraform
+      # Navega para o diretório do Terraform e executa terraform init
+      # O Terraform lerá as variáveis de ambiente TF_VAR_... para configurar o backend
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      # Passo 5: Destrói a infraestrutura com Terraform
+      # Executa terraform destroy para remover todos os recursos gerenciados por este estado
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve -input=false # -auto-approve destrói automaticamente
+        working-directory: ${{ env.TERRAFORM_DIR }}

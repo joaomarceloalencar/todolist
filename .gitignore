@@ -42,3 +42,8 @@ instance/
 # A pasta migrations/versions/ DEVE ser versionada
 # migrations/ # NÃO IGNORE esta pasta, apenas arquivos específicos dentro dela se necessário (ex: logs de migração)
 
+# Arquivos do Terraform
+*.tfstate
+*.tfvars
+.terraform*
+terraform.tfstate*

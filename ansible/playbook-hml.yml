@@ -1,0 +1,164 @@
+# ansible/playbook-hml.yml
+# Playbook Ansible para configurar a instância EC2 de homologação e fazer o deploy da aplicação
+
+- name: Configurar instância de homologação e fazer deploy da aplicação
+  hosts: hml_instances # Define o grupo de hosts onde este playbook será executado
+  become: yes # Executa as tarefas com privilégios de superusuário (sudo)
+  gather_facts: yes # Coleta fatos sobre os hosts (informações do sistema)
+
+  vars:
+    # Variáveis que podem ser sobrescritas (ex: via linha de comando, group_vars, host_vars)
+    ansible_python_interpreter: /usr/bin/python3 # Garante o uso do Python 3 na instância remota
+    app_repo_url: "https://github.com/joaomarceloalencar/todolist.git" # <--- Substitua pela URL do seu repositório
+    app_clone_path: "/opt/todolist" # Caminho onde o repositório será clonado na instância remota
+    # Caminhos relativos dentro do repositório clonado
+    app_code_path: "{{ app_clone_path }}/app" # Caminho para a pasta 'app' clonada
+    nginx_conf_src: "../app/conf/default.conf" # Caminho local (no runner/máquina Ansible) do arquivo de config Nginx
+    nginx_conf_dest: "{{ app_code_path }}/conf/default.conf" # Caminho de destino na instância remota
+    docker_compose_file: "{{ app_code_path }}/docker-compose-hml.yml" # Caminho para o arquivo docker-compose de HML
+    hml_env_file_path: "{{ app_code_path }}/.env" # Caminho para o arquivo .env na instância remota
+
+
+    # Variáveis para credenciais e segredos (passadas para o Ansible via GitHub Actions Secrets)
+    # Estas variáveis DEVEM ser definidas no workflow do GitHub Actions
+    # github_user: "{{ lookup('env', 'GITHUB_USER') }}" # Exemplo: ler de variável de ambiente (não recomendado para tokens)
+    # github_token: "{{ lookup('env', 'GITHUB_TOKEN') }}" # Exemplo: ler de variável de ambiente (NÃO FAÇA ISSO!)
+    # Use variáveis passadas diretamente para a execução do Ansible, lendo dos GitHub Secrets.
+    # Ex: ansible-playbook ... --extra-vars "github_token={{ secrets.GITHUB_TOKEN }} secret_key_hml={{ secrets.SECRET_KEY_HML }} ..."
+
+    # Variáveis de ambiente para a aplicação HML (serão escritas em um arquivo .env remoto)
+    hml_env_vars:
+      DATABASE_URL: "postgresql://todolist:todolist@db/todolist" # URL do BD contêiner (nome do serviço 'db')
+      SECRET_KEY: "{{ secret_key }}" # Lida da variável passada para o Ansible
+      FLASK_ENV: "homologation"
+      FLASK_APP: "src/wsgi.py"
+      PYTHONPATH: "/app" # Caminho para o diretório que contém 'src' dentro do contêiner Docker
+      DEBUG: "False"
+
+  tasks:
+    - name: Atualizar cache de pacotes apt
+      apt:
+        update_cache: yes
+
+    - name: Instalar pacotes necessários para Docker
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+
+    - name: Adicionar chave GPG oficial do Docker
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Adicionar repositório APT do Docker
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu noble stable # Assumindo Ubuntu 24.04 Noble
+        state: present
+
+    - name: Instalar Docker Engine, containerd e Docker Compose (plugin)
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin # Instala o plugin docker compose (para o comando 'docker compose')
+        state: present
+        update_cache: yes
+
+    # Tarefa para garantir que o usuário 'ubuntu' (ou outro usuário SSH) possa rodar Docker sem sudo
+    # O usuário padrão para AMIs Ubuntu é 'ubuntu'. Ajuste se for diferente.
+    - name: Adicionar usuário remoto ao grupo docker
+      user:
+        name: ubuntu # <--- Ajuste para o usuário SSH da sua instância se não for 'ubuntu'
+        groups: docker
+        append: yes
+
+    - name: Clonar o repositório da aplicação
+      ansible.builtin.git:
+        repo: "{{ app_repo_url }}"
+        dest: "{{ app_clone_path }}"
+        single_branch: yes
+        version: "{{ deploy_branch }}" 
+        # Se o repositório for privado, você precisará adicionar credenciais SSH ou HTTPS
+        # Use a chave privada SSH armazenada como GitHub Secret (passada para o Ansible)
+        key_file: "{{ ansible_env.HOME }}/.ssh/deployer_key_hml.pem" # Caminho onde a chave privada será copiada no runner e usada pelo Ansible
+        # Ou para HTTPS com token (menos seguro que SSH com chave):
+        # https_url: "https://{{ github_user }}:{{ github_token }}@github.com/SEU_USUARIO/SEU_REPOSITORIO.git"
+
+    # --- Tarefas de Depuração de Variáveis ---
+    - name: Debug - Exibir valor da variável secret_key
+      ansible.builtin.debug:
+        msg: "Valor de secret_key: {{ secret_key }}"
+    - name: Debug - Exibir valor da variável hml_env_vars
+      ansible.builtin.debug:
+        msg: "Valor de hml_env_vars: {{ hml_env_vars }}"
+    # --- Fim Tarefas de Depuração de Variáveis ---
+
+    # Tarefa para garantir que a pasta conf do Nginx exista no destino
+    - name: Criar pasta de configuração do Nginx na instância remota
+      ansible.builtin.file:
+        path: "{{ app_code_path }}/conf"
+        state: directory
+        mode: '0755'
+
+    # Tarefa para copiar o arquivo de configuração do Nginx
+    - name: Copiar arquivo de configuração do Nginx
+      ansible.builtin.copy:
+        src: "{{ nginx_conf_src }}" # Caminho local no runner
+        dest: "{{ nginx_conf_dest }}" # Caminho de destino na instância remota
+
+    # Tarefa para criar o arquivo .env na instância remota com as variáveis de HML
+    # Usamos o módulo template para gerar o arquivo .env a partir de um template local
+    # ou o módulo copy com conteúdo gerado dinamicamente.
+    - name: Criar arquivo .env com variáveis de ambiente para HML
+      ansible.builtin.copy:
+        content: |
+          DATABASE_URL={{ hml_env_vars.DATABASE_URL }}
+          SECRET_KEY={{ hml_env_vars.SECRET_KEY }}
+          FLASK_ENV={{ hml_env_vars.FLASK_ENV }}
+          FLASK_APP={{ hml_env_vars.FLASK_APP }}
+          PYTHONPATH={{ hml_env_vars.PYTHONPATH }}
+          DEBUG={{ hml_env_vars.DEBUG }}
+        dest: "{{ app_code_path }}/.env"
+        mode: '0600' # Permissões restritivas para o arquivo .env
+
+    # --- Tarefa de Depuração de Arquivo Remoto ---
+    - name: Debug - Ler conteúdo do arquivo .env remoto
+      ansible.builtin.command: "cat {{ hml_env_file_path }}"
+      register: remote_env_content
+    - name: Debug - Exibir conteúdo do arquivo .env remoto
+      ansible.builtin.debug:
+        msg: "Conteúdo de {{ hml_env_file_path }}: {{ remote_env_content.stdout }}"
+    # --- Fim Tarefa de Depuração de Arquivo Remoto ---
+
+    # Tarefa para executar as migrações usando docker compose run
+    - name: Executar migrações do banco de dados
+      ansible.builtin.command:
+        # Navega para o diretório 'app' antes de executar o comando
+        # Usa --env-file para carregar variáveis de ambiente do .env
+        # Executa apenas o serviço 'migrate' e o remove após a conclusão (--rm)
+        cmd: "docker compose -f {{ docker_compose_file }} --env-file {{ hml_env_file_path }} run --rm migrate"
+        chdir: "{{ app_code_path }}"
+      # Adicionar um delay opcional para garantir que o DB esteja pronto antes da migração
+      # delegate_to: localhost # Se quiser rodar o wait_for_port localmente antes
+      # wait_for:
+      #   port: 5432
+      #   host: db # Nome do serviço DB
+      #   delay: 10
+      #   timeout: 60
+
+    # Tarefa para executar o Docker Compose up para os serviços de longa duração
+    - name: Executar docker compose up para deploy da aplicação
+      ansible.builtin.command:
+        # Navega para o diretório 'app' antes de executar o comando docker compose
+        # Usa --env-file para carregar variáveis de ambiente do .env
+        # Inicia os serviços 'db', 'app', 'nginx' em modo detached (-d)
+        cmd: "docker compose -f {{ docker_compose_file }} --env-file {{ hml_env_file_path }} up -d --build db app nginx"
+        chdir: "{{ app_code_path }}" # Executa o comando a partir da pasta 'app' clonada
+      # Opcional: Adicionar um delay ou wait_for para garantir que a app esteja rodando antes de terminar o playbook
+      # listen: "wait for application to be ready" # Exemplo com listen (requer handler)
+

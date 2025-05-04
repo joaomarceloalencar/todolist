@@ -1,0 +1,162 @@
+# Nome do workflow
+name: Deploy to Homologation
+
+# Gatilho do workflow: executa em pushes para a branch 'hml'
+on:
+  push:
+    branches:
+      - hml
+
+# Define um único job chamado 'deploy'
+jobs:
+  deploy:
+    # Define o tipo de runner que o job será executado
+    runs-on: ubuntu-latest
+
+    # Define o ambiente de deploy no GitHub (opcional, mas boa prática)
+    # Permite configurar regras de proteção e segredos específicos do ambiente
+    environment: homologation
+
+    # Define variáveis de ambiente para o job.
+    # Segredos são acessados usando ${{ secrets.NOME_DO_SEGREDO }}
+    env:
+      # Credenciais AWS (lidas dos GitHub Secrets)
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }} # Opcional, se usar credenciais temporárias
+      AWS_REGION: "us-east-1" # <--- Defina a região da AWS (ajuste conforme sua AWS Academy)
+      TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
+
+      # Segredos da aplicação para HML (lidos dos GitHub Secrets)
+      SECRET_KEY: ${{ secrets.SECRET_KEY_HML }}
+
+      # Variável para o caminho do arquivo docker-compose de HML dentro do repositório clonado
+      DOCKER_COMPOSE_HML_PATH: "app/docker-compose-hml.yml"
+
+      # Variável para o caminho do playbook Ansible
+      ANSIBLE_PLAYBOOK_PATH: "ansible/playbook-hml.yml"
+
+      # Variável para o caminho da pasta Ansible (corrigindo o erro de validação)
+      ANSIBLE_DIR: "ansible" # <=== ADICIONADO: Diretório do Ansible
+
+      # Variável para o NOME BASE do arquivo do playbook Ansible
+      ANSIBLE_PLAYBOOK_BASENAME: "playbook-hml.yml" # <=== ADICIONADO: Nome base do playbook
+
+      # Variável de ambiente para passar opções SSH para o cliente SSH do Ansible
+      ANSIBLE_SSH_ARGS: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+      # Variável para o caminho da pasta Terraform
+      TERRAFORM_DIR: "terraform"
+
+      # Usuário SSH padrão para a instância EC2 (ajuste se necessário)
+      SSH_USER: "ubuntu"
+
+      # Caminho onde a chave privada SSH será salva temporariamente no runner
+      SSH_PRIVATE_KEY_PATH_RUNNER: "~/.ssh/deployer_key_hml.pem"
+
+      # Variável de ambiente para a branch que disparou o workflow
+      GITHUB_BRANCH: ${{ github.ref_name }} # <=== ADICIONADO
+
+    # Passos que serão executados neste job
+    steps:
+      # Passo 1: Faz o checkout do código do repositório
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 é útil para obter histórico completo, mas pode não ser necessário para este deploy
+          fetch-depth: 1 # Clona apenas o commit mais recente
+
+      # Passo 2: Configura o ambiente Python (necessário para o Ansible)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x' # Use a versão Python que você está usando no seu projeto
+
+      # Passo 3: Configura o ambiente Terraform
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "latest" # Opcional: fixar uma versão específica do Terraform
+
+      # Passo 4: Configura o ambiente Docker (incluindo Buildx)
+      # Necessário para que o Ansible possa rodar comandos docker compose na instância remota
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Passo 5: Configura as credenciais AWS no runner
+      # Permite que o Terraform e outros comandos AWS (se houver) interajam com sua conta
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }} # Usa a variável de ambiente definida acima
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }} # Usa a variável de ambiente definida acima
+          aws-region: ${{ env.AWS_REGION }} # Usa a variável de ambiente definida acima
+          aws-session-token: ${{ env.AWS_SESSION_TOKEN }} # Opcional, se usar credenciais temporárias
+
+      # Passo 6: Inicializa o Terraform
+      # Navega para o diretório do Terraform e executa terraform init
+      - name: Terraform Init
+        run: terraform init -backend-config="bucket=${TF_BUCKET}"
+        working-directory: ${{ env.TERRAFORM_DIR }} # Executa o comando na pasta 'terraform'
+
+      # Passo 7: Cria um plano de execução do Terraform (opcional, para visibilidade nos logs)
+      # Mostra o que o Terraform planeja criar/modificar/destruir
+      - name: Terraform Plan
+        run: terraform plan -input=false # -input=false evita prompts interativos
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      # Passo 8: Aplica o plano do Terraform para provisionar a infraestrutura
+      # Provisiona a instância EC2, Security Group, Key Pair, etc.
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false # -auto-approve aprova automaticamente o plano
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      # Passo 9: Obtém o IP público da instância EC2 provisionada
+      # Usa a saída do Terraform para obter o IP
+      - name: Get EC2 Public IP
+        id: get_ip # Atribui um ID a este passo para referenciar sua saída
+        run: |
+          # Obtém o valor da saída 'hml_instance_public_ip' do Terraform
+          EC2_IP=$(terraform output -raw hml_instance_public_ip)
+          # Imprime o IP (opcional)
+          echo "EC2 Instance Public IP: $EC2_IP"
+          # Define o IP como uma saída deste passo para uso em passos subsequentes
+          echo "EC2_IP=$EC2_IP" >> $GITHUB_OUTPUT
+        working-directory: ${{ env.TERRAFORM_DIR }} # Executa o comando na pasta 'terraform'
+
+      # Passo 10: Configura o SSH Agent e adiciona a chave privada
+      # Permite que o Ansible se conecte à instância EC2 usando a chave privada
+      # A chave privada é lida do GitHub Secret SSH_PRIVATE_KEY_HML
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_HML }} # Lê o segredo e adiciona ao agente
+
+      # Passo 11: Instala o Ansible
+      # Embora o runner tenha Python, o Ansible pode precisar ser instalado
+      - name: Install Ansible
+        run: pip install ansible
+
+      # Passo 12: Cria o arquivo de inventário Ansible dinamicamente
+      # Cria um arquivo inventory.ini com o IP da instância obtido do passo 9
+      - name: Create Ansible Inventory
+        run: |
+          echo "[hml_instances]" > inventory.ini
+          echo "${{ steps.get_ip.outputs.EC2_IP }} ansible_user=${{ env.SSH_USER }}" >> inventory.ini
+        working-directory: ${{ env.ANSIBLE_DIR }} # Cria o inventário na pasta 'ansible'
+
+      # Passo 13: Executa o playbook Ansible
+      # Conecta à instância EC2 e executa as tarefas para configurar e fazer o deploy
+      - name: Run Ansible Playbook
+        run: |
+          # Executa o playbook Ansible
+          # -i inventory.ini: Usa o arquivo de inventário criado
+          # --private-key ...: Especifica a chave privada (não é estritamente necessário se usar ssh-agent)
+          # --extra-vars ...: Passa variáveis extras para o playbook (segredos da aplicação)
+          ansible-playbook -i inventory.ini ${{ env.ANSIBLE_PLAYBOOK_BASENAME }} \
+            --private-key ${{ env.SSH_PRIVATE_KEY_PATH_RUNNER }} \
+            --extra-vars "secret_key=${{ env.SECRET_KEY }} deploy_branch=${{ env.GITHUB_BRANCH }}" \
+            -vvv 
+        working-directory: ${{ env.ANSIBLE_DIR }} # Executa o comando na pasta 'ansible'
+
+
