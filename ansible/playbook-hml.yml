@@ -90,9 +90,9 @@
         # https_url: "https://{{ github_user }}:{{ github_token }}@github.com/SEU_USUARIO/SEU_REPOSITORIO.git"
 
     # --- Tarefas de Depuração de Variáveis ---
-    - name: Debug - Exibir valor da variável secret_key_hml
+    - name: Debug - Exibir valor da variável secret_key
       ansible.builtin.debug:
-        msg: "Valor de secret_key_hml: {{ secret_key_hml }}"
+        msg: "Valor de secret_key: {{ secret_key }}"
     - name: Debug - Exibir valor da variável hml_env_vars
       ansible.builtin.debug:
         msg: "Valor de hml_env_vars: {{ hml_env_vars }}"

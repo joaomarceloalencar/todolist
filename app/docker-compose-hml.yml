@@ -60,7 +60,7 @@ services:
       # Variáveis de ambiente que a SUA APLICAÇÃO vai ler
       # Estas variáveis DEVEM ser passadas para o Ansible e definidas no ambiente do contêiner
       DATABASE_URL: postgresql://todolist:todolist@db/todolist # URL do BD contêiner (nome do serviço 'db')
-      SECRET_KEY_HML: ${SECRET_KEY_HML} # <--- Use um segredo DIFERENTE de DEV e PROD
+      SECRET_KEY: ${SECRET_KEY} # <--- Use um segredo DIFERENTE de DEV e PROD
       FLASK_ENV: homologation # Define o ambiente para a fábrica (config.py)
       FLASK_APP: src/wsgi.py # Ponto de entrada da aplicação
       PYTHONPATH: /app # Inclui /app no caminho de importação do Python
@@ -83,7 +83,7 @@ services:
       # Passa as mesmas variáveis de ambiente de BD que o serviço 'app' precisa
       # Estas variáveis DEVEM ser passadas para o Ansible e definidas no ambiente do contêiner
       DATABASE_URL: postgresql://todolist:todolist@db/todolist
-      SECRET_KEY_HML: ${SECRET_KEY_HML} # Necessário para a app factory carregar a config
+      SECRET_KEY: ${SECRET_KEY} # Necessário para a app factory carregar a config
       FLASK_ENV: homologation # Define o ambiente correto para carregar a config do BD
       FLASK_APP: src/wsgi.py
       PYTHONPATH: /app # Inclui /app no caminho de importação do Python
