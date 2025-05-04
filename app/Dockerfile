@@ -13,4 +13,4 @@ ENV FLASK_APP=wsgi.py
 
 EXPOSE 8000
 
-CMD ["/bin/bash", "-c", "export PYTHONPATH=/app && gunicorn -b 0.0.0.0:8000 wsgi:app --workers 4 --threads 2 --timeout 120"]
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "wsgi:app", "--workers", "4", "--threads", "2", "--timeout", "120"]

@@ -63,7 +63,7 @@ services:
       SECRET_KEY: ${SECRET_KEY} # <--- Use um segredo DIFERENTE de DEV e PROD
       FLASK_ENV: homologation # Define o ambiente para a fábrica (config.py)
       FLASK_APP: src/wsgi.py # Ponto de entrada da aplicação
-      PYTHONPATH: /app # Inclui /app no caminho de importação do Python
+      PYTHONPATH: /app/src # Inclui /app no caminho de importação do Python
       DEBUG: False # Desabilita o modo debug para HML
     depends_on:
       migrate:
@@ -86,7 +86,7 @@ services:
       SECRET_KEY: ${SECRET_KEY} # Necessário para a app factory carregar a config
       FLASK_ENV: homologation # Define o ambiente correto para carregar a config do BD
       FLASK_APP: src/wsgi.py
-      PYTHONPATH: /app # Inclui /app no caminho de importação do Python
+      PYTHONPATH: /app/src # Inclui /app no caminho de importação do Python
     depends_on:
       db:
         condition: service_healthy # Depende do banco de dados estar saudável
