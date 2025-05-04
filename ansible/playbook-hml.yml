@@ -116,11 +116,29 @@
         dest: "{{ app_code_path }}/.env"
         mode: '0600' # Permissões restritivas para o arquivo .env
 
-    # Tarefa para executar o Docker Compose para subir os serviços
+    # Tarefa para executar as migrações usando docker compose run
+    - name: Executar migrações do banco de dados
+      ansible.builtin.command:
+        # Navega para o diretório 'app' antes de executar o comando
+        # Usa --env-file para carregar variáveis de ambiente do .env
+        # Executa apenas o serviço 'migrate' e o remove após a conclusão (--rm)
+        cmd: "docker compose -f {{ docker_compose_file }} --env-file {{ hml_env_file_path }} run --rm migrate"
+        chdir: "{{ app_code_path }}"
+      # Adicionar um delay opcional para garantir que o DB esteja pronto antes da migração
+      # delegate_to: localhost # Se quiser rodar o wait_for_port localmente antes
+      # wait_for:
+      #   port: 5432
+      #   host: db # Nome do serviço DB
+      #   delay: 10
+      #   timeout: 60
+
+    # Tarefa para executar o Docker Compose up para os serviços de longa duração
     - name: Executar docker compose up para deploy da aplicação
       ansible.builtin.command:
         # Navega para o diretório 'app' antes de executar o comando docker compose
-        cmd: "docker compose -f {{ docker_compose_file }} up -d --build"
+        # Usa --env-file para carregar variáveis de ambiente do .env
+        # Inicia os serviços 'db', 'app', 'nginx' em modo detached (-d)
+        cmd: "docker compose -f {{ docker_compose_file }} --env-file {{ hml_env_file_path }} up -d --build db app nginx"
         chdir: "{{ app_code_path }}" # Executa o comando a partir da pasta 'app' clonada
       # Opcional: Adicionar um delay ou wait_for para garantir que a app esteja rodando antes de terminar o playbook
       # listen: "wait for application to be ready" # Exemplo com listen (requer handler)
