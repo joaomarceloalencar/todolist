@@ -46,3 +46,4 @@ instance/
 *.tfstate
 *.tfvars
 .terraform*
+terraform.tfstate*
