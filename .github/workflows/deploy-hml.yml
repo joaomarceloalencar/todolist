@@ -150,7 +150,8 @@ jobs:
           ansible-playbook -i inventory.ini ${{ env.ANSIBLE_PLAYBOOK_BASENAME }} \
             --private-key ${{ env.SSH_PRIVATE_KEY_PATH_RUNNER }} \
             --extra-vars "secret_key_hml=${{ env.SECRET_KEY_HML }}" \
-            -vvv # Opcional: -vvv para saída mais detalhada do Ansible (útil para depuração)
+            -vvv \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null 
         working-directory: ${{ env.ANSIBLE_DIR }} # Executa o comando na pasta 'ansible'
 
       # Passo 14: Aguardar a aplicação ficar acessível (Opcional)
