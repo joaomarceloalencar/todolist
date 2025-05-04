@@ -9,7 +9,7 @@ data "aws_ami" "ubuntu" {
   most_recent = true
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"] # Padrão de nome para Ubuntu 24.04 LTS
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"] # Padrão de nome para Ubuntu 24.04 LTS (ajustado conforme sua descoberta)
   }
   filter {
     name   = "virtualization-type"
@@ -18,21 +18,48 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # ID do proprietário oficial das AMIs do Ubuntu (Canonical)
 }
 
+# --- Lógica para encontrar ou criar o par de chaves SSH ---
+
+# Tenta encontrar um par de chaves SSH existente pelo nome
+data "aws_key_pair" "existing_deployer_key" {
+  key_name = "deployer-key-hml" # Nome da chave que esperamos encontrar
+}
+
 # Cria um par de chaves SSH para acesso à instância EC2
-# A chave privada correspondente DEVE ser armazenada como um GitHub Secret
+# Este recurso SÓ será criado se o data source acima NÃO encontrar uma chave existente.
 resource "aws_key_pair" "deployer_key" {
-  key_name   = "deployer-key-hml" # Nome da chave na AWS
+  # Usa 'count' para criar este recurso apenas se o data source falhar ao encontrar a chave.
+  # A função 'can' verifica se a expressão pode ser avaliada sem erro.
+  # Se o data source falhar (chave não encontrada), can() retornará false, e count será 1.
+  # Se o data source for bem-sucedido (chave encontrada), can() retornará true, e count será 0.
+  count = can(data.aws_key_pair.existing_deployer_key.id) ? 0 : 1
+
+  key_name = "deployer-key-hml" # Nome da chave na AWS
   # A chave pública correspondente à chave privada armazenada no GitHub Secret
   # Você precisará gerar um par de chaves SSH localmente e colar a chave pública aqui.
   # Exemplo: ssh-keygen -t rsa -b 4096 -C "seu_email@example.com"
   # Cole o conteúdo do arquivo .pub gerado aqui (ex: ~/.ssh/deployer-key-hml.pub)
-  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCnCIqCj662njuTA/DSftx9xBRRSxv7yeg1hlTwRDBZF40x87dT5ZNCNYsYEtAAwDXeuFKC7V5nLhfEV/Chde+RTxEbOJQVd6HKLebrxW+9WldoeWrCzwDugP5N+ViwDpHE1CORiqupVuvn5q3G4Ygt3kKLrEg7tEwrB/GDk5jF8O9H2fGA3VqpRKrmn9WjUE8Q3jExA0ktzA0BaQL+UoicxeU55Dkddsk9KS9adYjh9Z6cElumpW8/W2fEr1oJDfKf0DR4pmWLAFl9w8/qQuWeMnOf+dMlrn7Dg97yk75Rg/yNBK5l4/18WqwCTCITLsHiR48/LDI1HX1Qpn76yERyhmGczreQ0h4lLeQsSWrJrJC6jV+xUwKpjGk1mZs6zVSP3yyD6Fuc76ur1a+dNgUG2wwNJ2s1RP0thW4a3roqWT4j+5Fcl9S18COGGjtI5MxWeOxgXop7LYNu+cqqClrXbPUYWyHV194PzGttLtiN1atwFjieDx2+aU9uOqoONiGYArXyl/9h+L0rOTdPT9/I6+4sW1V0J5XuKqgXsu9vuGNAFhioyJZuHud6r093lqtKW4O20xnp1sQ8FZkeU8YDBdHT3e+4FnqBQu5eorDRA4TIByvXZfsydaNphtLWe/LEO8nrhr7dDPLbNwVt70ZxdybxJNq4QRuPg5/F0Wj3LQ== joao.marcelo@ufc.br"
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC1z8eE3OldFY2xpk5/UwJ8FyfemhFsKEg7KVsVzaynOB0D2kzRVZd6OC0iJiAHvMvo8Yxvs6dcMUJE5hiMrfd0uQGm51XeKOa/ORGI7GVrNGYKagcKsS5Mqyhvs8ljUAq7XzR53eNs1mXWbDrpG3LrFBS/6QHkFKYzXKfAP7RDjdwOE23Phv065Ki4Tg0f/yF6QUFYALAGgwRRR1c1sT3rt9RNo2BHRRz879HaVGGSOmBNxrmi7AG/av6I7vkxCoXhwm9vk6zTf+N+JWI+D7i8DeCKXUxJHS71VzDTiprXvsXKp1NMjarWtdqVSd4lHDAjhr/AT+2DnEQtEhmIhgf9ED5jEBWn5w+UF4hFkIJTVrjVuMbsOhvw8SXQ9EdSNN97kYvd22cW7wGUfXKivMQ7ztxrb04L" # <--- Cole sua chave pública aqui
+}
+
+# --- Fim Lógica para encontrar ou criar o par de chaves SSH ---
+
+
+# --- Lógica para encontrar ou criar o Security Group ---
+
+# Tenta encontrar um Security Group existente pelo nome
+data "aws_security_group" "existing_hml_sg" {
+  name = "hml-security-group" # Nome do Security Group que esperamos encontrar
 }
 
 # Cria um Security Group para a instância EC2
-# Permite tráfego SSH (porta 22) do seu IP (ou de qualquer lugar para simplificar no curso)
-# Permite tráfego HTTP (porta 80) de qualquer lugar para acessar a aplicação
+# Este recurso SÓ será criado se o data source acima NÃO encontrar um Security Group existente.
 resource "aws_security_group" "hml_sg" {
+  # Usa 'count' para criar este recurso apenas se o data source falhar ao encontrar o SG.
+  # Se o data source falhar (SG não encontrado), can() retornará false, e count será 1.
+  # Se o data source for bem-sucedido (SG encontrado), can() retornará true, e count será 0.
+  count = can(data.aws_security_group.existing_hml_sg.id) ? 0 : 1 # <=== Lógica condicional
+
   name        = "hml-security-group"
   description = "Allow SSH and HTTP traffic to HML instance"
   # vpc_id = "vpc-xxxxxxxxxxxxxxxxx" # Opcional: Especifique uma VPC se não usar a default
@@ -69,13 +96,27 @@ resource "aws_security_group" "hml_sg" {
   }
 }
 
+# --- Fim Lógica para encontrar ou criar o Security Group ---
+
+
 # Cria a instância EC2
 resource "aws_instance" "hml_instance" {
   ami           = data.aws_ami.ubuntu.id # Usa a AMI do Ubuntu 24.04 encontrada
   instance_type = "t3.medium" # Tipo de instância conforme o plano
-  key_name      = aws_key_pair.deployer_key.key_name # Associa o par de chaves criado
+  # Associa o par de chaves. Usa o nome fixo já que a lógica acima garante que ele existe.
+  key_name      = "deployer-key-hml"
+
+  # Associa o Security Group. Usa o ID do SG encontrado pelo data source OU o ID do SG criado pelo resource.
+  # A função coalesce() retorna o primeiro valor não nulo.
+  # Se o data source encontrou o SG, data.aws_security_group.existing_hml_sg.id será usado.
+  # Se o resource criou o SG (count=1), aws_security_group.hml_sg[0].id será usado.
+  # Se o resource NÃO foi criado (count=0), aws_security_group.hml_sg[0].id seria inacessível,
+  # mas a função can() no count do resource garante que ele só é criado se o data source falhar.
+  # Portanto, podemos simplesmente referenciar o ID do data source ou do resource criado.
+  # Usando a condicional em uma única linha para evitar erros de parsing.
+  security_groups = [can(data.aws_security_group.existing_hml_sg.id) ? data.aws_security_group.existing_hml_sg.id : aws_security_group.hml_sg[0].id] # <=== Referência condicional em linha única
+
   # subnet_id = "subnet-xxxxxxxxxxxxxxxxx" # Opcional: Especifique uma subnet se não usar a default
-  security_groups = [aws_security_group.hml_sg.name] # Associa o Security Group criado
 
   # User data para executar comandos na inicialização (opcional, mas útil para setup inicial)
   # user_data = <<-EOF
@@ -101,5 +142,14 @@ output "hml_instance_public_ip" {
 # Define a saída do nome da chave SSH
 output "hml_key_pair_name" {
   description = "Name of the SSH key pair for HML instance"
-  value       = aws_key_pair.deployer_key.key_name
+  # Usa o nome fixo já que a lógica acima garante que ele existe.
+  value       = "deployer-key-hml"
+}
+
+# Define a saída do ID do Security Group usado
+output "hml_security_group_id" {
+  description = "ID of the Security Group used for HML instance"
+  # Usa o ID do SG encontrado pelo data source OU o ID do SG criado pelo resource.
+  # Usando a condicional em uma única linha para evitar erros de parsing.
+  value = can(data.aws_security_group.existing_hml_sg.id) ? data.aws_security_group.existing_hml_sg.id : aws_security_group.hml_sg[0].id # <=== Referência condicional em linha única
 }
