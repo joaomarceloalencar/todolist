@@ -27,7 +27,7 @@
     # Variáveis de ambiente para a aplicação HML (serão escritas em um arquivo .env remoto)
     hml_env_vars:
       DATABASE_URL: "postgresql://todolist:todolist@db/todolist" # URL do BD contêiner (nome do serviço 'db')
-      SECRET_KEY: "{{ secret_key_hml }}" # Lida da variável passada para o Ansible
+      SECRET_KEY_HML: "{{ secret_key_hml }}" # Lida da variável passada para o Ansible
       FLASK_ENV: "homologation"
       FLASK_APP: "src/wsgi.py"
       PYTHONPATH: "/app" # Caminho para o diretório que contém 'src' dentro do contêiner Docker
