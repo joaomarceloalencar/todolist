@@ -41,6 +41,9 @@ jobs:
       # Variável para o NOME BASE do arquivo do playbook Ansible
       ANSIBLE_PLAYBOOK_BASENAME: "playbook-hml.yml" # <=== ADICIONADO: Nome base do playbook
 
+      # Variável de ambiente para passar opções SSH para o cliente SSH do Ansible
+      ANSIBLE_SSH_ARGS: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
       # Variável para o caminho da pasta Terraform
       TERRAFORM_DIR: "terraform"
 
@@ -150,8 +153,7 @@ jobs:
           ansible-playbook -i inventory.ini ${{ env.ANSIBLE_PLAYBOOK_BASENAME }} \
             --private-key ${{ env.SSH_PRIVATE_KEY_PATH_RUNNER }} \
             --extra-vars "secret_key_hml=${{ env.SECRET_KEY_HML }}" \
-            -vvv \
-            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null 
+            -vvv 
         working-directory: ${{ env.ANSIBLE_DIR }} # Executa o comando na pasta 'ansible'
 
       # Passo 14: Aguardar a aplicação ficar acessível (Opcional)
