@@ -59,7 +59,7 @@ jobs:
       # Navega para o diretório do Terraform e executa terraform init
       # O Terraform lerá as variáveis de ambiente TF_VAR_... para configurar o backend
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -backend-config="bucket=${TF_BUCKET}"
         working-directory: ${{ env.TERRAFORM_DIR }}
 
       # Passo 5: Destrói a infraestrutura com Terraform
