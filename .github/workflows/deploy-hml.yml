@@ -28,7 +28,7 @@ jobs:
       TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
 
       # Segredos da aplicação para HML (lidos dos GitHub Secrets)
-      SECRET_KEY_HML: ${{ secrets.SECRET_KEY_HML }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY_HML }}
 
       # Variável para o caminho do arquivo docker-compose de HML dentro do repositório clonado
       DOCKER_COMPOSE_HML_PATH: "app/docker-compose-hml.yml"
@@ -155,7 +155,7 @@ jobs:
           # --extra-vars ...: Passa variáveis extras para o playbook (segredos da aplicação)
           ansible-playbook -i inventory.ini ${{ env.ANSIBLE_PLAYBOOK_BASENAME }} \
             --private-key ${{ env.SSH_PRIVATE_KEY_PATH_RUNNER }} \
-            --extra-vars "secret_key_hml=${{ env.SECRET_KEY_HML }} deploy_branch=${{ env.GITHUB_BRANCH }}" \
+            --extra-vars "secret_key=${{ env.SECRET_KEY }} deploy_branch=${{ env.GITHUB_BRANCH }}" \
             -vvv 
         working-directory: ${{ env.ANSIBLE_DIR }} # Executa o comando na pasta 'ansible'
 
