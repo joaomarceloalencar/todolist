@@ -29,10 +29,12 @@ data "aws_key_pair" "existing_deployer_key" {
 # Este recurso SÓ será criado se o data source acima NÃO encontrar uma chave existente.
 resource "aws_key_pair" "deployer_key" {
   # Usa 'count' para criar este recurso apenas se o data source falhar ao encontrar a chave.
-  # A função 'can' verifica se a expressão pode ser avaliada sem erro.
-  # Se o data source falhar (chave não encontrada), can() retornará false, e count será 1.
-  # Se o data source for bem-sucedido (chave encontrada), can() retornará true, e count será 0.
-  count = can(data.aws_key_pair.existing_deployer_key.id) ? 0 : 1
+  # A função 'try' tenta avaliar o primeiro argumento. Se falhar, tenta o segundo, etc.
+  # Se data.aws_key_pair.existing_deployer_key.id falhar (chave não encontrada),
+  # então try tentará avaliar aws_key_pair.deployer_key[0].id.
+  # Se o recurso for criado (count=1), aws_key_pair.deployer_key[0].id será válido.
+  # Se o recurso não for criado (count=0), esta parte não será avaliada.
+  count = try(data.aws_key_pair.existing_deployer_key.id, null) == null ? 1 : 0 # <=== Lógica condicional com try()
 
   key_name = "deployer-key-hml" # Nome da chave na AWS
   # A chave pública correspondente à chave privada armazenada no GitHub Secret
@@ -56,9 +58,9 @@ data "aws_security_group" "existing_hml_sg" {
 # Este recurso SÓ será criado se o data source acima NÃO encontrar um Security Group existente.
 resource "aws_security_group" "hml_sg" {
   # Usa 'count' para criar este recurso apenas se o data source falhar ao encontrar o SG.
-  # Se o data source falhar (SG não encontrado), can() retornará false, e count será 1.
-  # Se o data source for bem-sucedido (SG encontrado), can() retornará true, e count será 0.
-  count = can(data.aws_security_group.existing_hml_sg.id) ? 0 : 1 # <=== Lógica condicional
+  # Se o data source falhar (SG não encontrado), try(..., null) retornará null, e count será 1.
+  # Se o data source for bem-sucedido (SG encontrado), try(..., null) retornará o ID, e count será 0.
+  count = try(data.aws_security_group.existing_hml_sg.id, null) == null ? 1 : 0 # <=== Lógica condicional com try()
 
   name        = "hml-security-group"
   description = "Allow SSH and HTTP traffic to HML instance"
@@ -98,6 +100,18 @@ resource "aws_security_group" "hml_sg" {
 
 # --- Fim Lógica para encontrar ou criar o Security Group ---
 
+# --- Local value para determinar o ID do Security Group a ser usado ---
+locals {
+  # Tenta obter o ID do SG do data source. Se falhar, usa o ID do SG criado pelo resource.
+  # A função try() avalia o primeiro argumento. Se falhar, avalia o segundo.
+  # Se data.aws_security_group.existing_hml_sg.id falhar (SG não encontrado),
+  # try tentará avaliar aws_security_group.hml_sg[0].id.
+  # Como o count do recurso garante que ele só é criado se o data source falhar,
+  # aws_security_group.hml_sg[0].id será válido neste ponto.
+  security_group_id_to_use = try(data.aws_security_group.existing_hml_sg.id, aws_security_group.hml_sg[0].id) # <=== Usando try()
+}
+# --- Fim Local value ---
+
 
 # Cria a instância EC2
 resource "aws_instance" "hml_instance" {
@@ -106,10 +120,8 @@ resource "aws_instance" "hml_instance" {
   # Associa o par de chaves. Usa o nome fixo já que a lógica acima garante que ele existe.
   key_name      = "deployer-key-hml"
 
-  # Associa o Security Group. Usa o ID do SG encontrado pelo data source OU o ID do SG criado pelo resource.
-  # Usando a contagem do recurso para decidir qual ID usar.
-  security_groups = [length(aws_security_group.hml_sg) > 0 ? aws_security_group.hml_sg[0].id : data.aws_security_group.existing_hml_sg.id] # <=== CORRIGIDO: Referência usando length()
-                                                                                                                                         # e acessando o ID do data source ou do primeiro item da lista do recurso
+  # Associa o Security Group usando o local value
+  security_groups = [local.security_group_id_to_use] # <=== Usa o local value
 
   # subnet_id = "subnet-xxxxxxxxxxxxxxxxx" # Opcional: Especifique uma subnet se não usar a default
 
@@ -144,7 +156,6 @@ output "hml_key_pair_name" {
 # Define a saída do ID do Security Group usado
 output "hml_security_group_id" {
   description = "ID of the Security Group used for HML instance"
-  # Usa o ID do SG encontrado pelo data source OU o ID do SG criado pelo resource.
-  # Usando a contagem do recurso para decidir qual ID usar.
-  value = length(aws_security_group.hml_sg) > 0 ? aws_security_group.hml_sg[0].id : data.aws_security_group.existing_hml_sg.id # <=== CORRIGIDO: Referência usando length()
+  # Usa o local value para a saída
+  value = local.security_group_id_to_use # <=== Usa o local value
 }
