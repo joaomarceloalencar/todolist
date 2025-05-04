@@ -108,7 +108,7 @@
       ansible.builtin.copy:
         content: |
           DATABASE_URL={{ hml_env_vars.DATABASE_URL }}
-          SECRET_KEY={{ hml_env_vars.SECRET_KEY }}
+          SECRET_KEY={{ hml_env_vars.SECRET_KEY_HML }}
           FLASK_ENV={{ hml_env_vars.FLASK_ENV }}
           FLASK_APP={{ hml_env_vars.FLASK_APP }}
           PYTHONPATH={{ hml_env_vars.PYTHONPATH }}
