@@ -85,6 +85,7 @@ jobs:
           aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }} # Usa a variável de ambiente definida acima
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }} # Usa a variável de ambiente definida acima
           aws-region: ${{ env.AWS_REGION }} # Usa a variável de ambiente definida acima
+          aws-session-token: ${{ env.AWS_SESSION_TOKEN }} # Opcional, se usar credenciais temporárias
 
       # Passo 6: Inicializa o Terraform
       # Navega para o diretório do Terraform e executa terraform init
