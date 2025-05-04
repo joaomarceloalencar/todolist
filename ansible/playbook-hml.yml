@@ -16,6 +16,8 @@
     nginx_conf_src: "../app/conf/default.conf" # Caminho local (no runner/máquina Ansible) do arquivo de config Nginx
     nginx_conf_dest: "{{ app_code_path }}/conf/default.conf" # Caminho de destino na instância remota
     docker_compose_file: "{{ app_code_path }}/docker-compose-hml.yml" # Caminho para o arquivo docker-compose de HML
+    hml_env_file_path: "{{ app_code_path }}/.env" # Caminho para o arquivo .env na instância remota
+
 
     # Variáveis para credenciais e segredos (passadas para o Ansible via GitHub Actions Secrets)
     # Estas variáveis DEVEM ser definidas no workflow do GitHub Actions
