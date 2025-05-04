@@ -13,7 +13,7 @@
     app_clone_path: "/opt/todolist" # Caminho onde o repositório será clonado na instância remota
     # Caminhos relativos dentro do repositório clonado
     app_code_path: "{{ app_clone_path }}/app" # Caminho para a pasta 'app' clonada
-    nginx_conf_src: "../app/conf/default.conf" # Caminho local (no runner/máquina Ansible) do arquivo de config Nginx
+    nginx_conf_src: "./app/conf/default.conf" # Caminho local (no runner/máquina Ansible) do arquivo de config Nginx
     nginx_conf_dest: "{{ app_code_path }}/conf/default.conf" # Caminho de destino na instância remota
     docker_compose_file: "{{ app_code_path }}/docker-compose-hml.yml" # Caminho para o arquivo docker-compose de HML
 
