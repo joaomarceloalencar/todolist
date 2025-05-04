@@ -1,0 +1,108 @@
+# app/docker-compose-hml.yml
+# Configuração para o ambiente de homologação usando Docker Compose
+# Destinado a ser executado em uma instância EC2
+
+services:
+  # Serviço Nginx como proxy reverso
+  nginx:
+    image: nginx:latest # Usar latest é aceitável para este exemplo de curso
+    ports:
+      - "80:80" # Mapeia a porta 80 do host (EC2) para a porta 80 do contêiner Nginx
+    volumes:
+      # Monta o arquivo de configuração do Nginx.
+      # Este arquivo precisará ser copiado para a instância EC2 pelo Ansible.
+      - ./conf/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      # Garante que o Nginx só inicie após a aplicação e as migrações
+      app:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - todolist # Conecta o Nginx à rede da aplicação
+
+  # Serviço de Banco de Dados PostgreSQL
+  db:
+    image: postgres:latest # Usar latest é aceitável para este exemplo de curso
+    volumes:
+      # Persiste os dados do banco de dados em um volume dentro da EC2
+      # Os dados persistirão enquanto a instância EC2 existir
+      - db_data:/var/lib/postgresql/data # Volume nomeado para persistência de dados
+    environment:
+      # Configurações iniciais do banco de dados
+      - POSTGRES_USER=todolist
+      - POSTGRES_PASSWORD=todolist # <--- Use um segredo!
+      - POSTGRES_DB=todolist
+      # NOTA: Em produção/HML, estas credenciais DEVEM vir de variáveis de ambiente seguras!
+    healthcheck:
+      # Verifica se o banco de dados está pronto para aceitar conexões
+      test: ["CMD-SHELL", "pg_isready -U todolist"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - todolist # Conecta o DB à rede da aplicação
+    # NÃO expõe a porta 5432 para o host (EC2), acesso apenas via rede Docker
+
+  # Serviço da Aplicação Flask
+  app:
+    build:
+      # Constrói a imagem a partir do Dockerfile na pasta atual (assumindo que o Dockerfile está em ./app)
+      # O contexto de build será a pasta app/ clonada na EC2
+      context: ./ # Ajuste se o Dockerfile estiver em outro lugar (ex: .)
+      dockerfile: Dockerfile
+    image: todolist:hml # Tag para a imagem de homologação
+    volumes:
+      # Volume para a pasta instance (se necessário para a app)
+      # Pode ser útil para logs ou arquivos de configuração gerados em tempo de execução
+      - app_instance_data:/app/instance # Volume nomeado para persistência da pasta instance
+    environment:
+      # Variáveis de ambiente que a SUA APLICAÇÃO vai ler
+      # Estas variáveis DEVEM ser passadas para o Ansible e definidas no ambiente do contêiner
+      DATABASE_URL: postgresql://todolist:todolist@db/todolist # URL do BD contêiner (nome do serviço 'db')
+      SECRET_KEY: ${SECRET_KEY_HML} # <--- Use um segredo DIFERENTE de DEV e PROD
+      FLASK_ENV: homologation # Define o ambiente para a fábrica (config.py)
+      FLASK_APP: src/wsgi.py # Ponto de entrada da aplicação
+      PYTHONPATH: /app # Inclui /app no caminho de importação do Python
+      DEBUG: False # Desabilita o modo debug para HML
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - todolist # Conecta a App à rede
+    # O comando padrão (CMD do Dockerfile) que roda o Gunicorn será executado
+
+  # Serviço para rodar as migrações do banco de dados
+  migrate:
+    build:
+      # Usa o mesmo contexto e Dockerfile da aplicação
+      context: ./ # Ajuste se o Dockerfile estiver em outro lugar (ex: .)
+      dockerfile: Dockerfile
+    image: todolist:hml # Usa a mesma imagem construída
+    environment:
+      # Passa as mesmas variáveis de ambiente de BD que o serviço 'app' precisa
+      # Estas variáveis DEVEM ser passadas para o Ansible e definidas no ambiente do contêiner
+      DATABASE_URL: postgresql://todolist:todolist@db/todolist
+      SECRET_KEY: ${SECRET_KEY_HML} # Necessário para a app factory carregar a config
+      FLASK_ENV: homologation # Define o ambiente correto para carregar a config do BD
+      FLASK_APP: src/wsgi.py
+      PYTHONPATH: /app # Inclui /app no caminho de importação do Python
+    depends_on:
+      db:
+        condition: service_healthy # Depende do banco de dados estar saudável
+    networks:
+      - todolist # Conecta à rede
+    # COMANDO: Verifica se a pasta migrations existe e inicializa se não, depois roda o upgrade
+    # Este comando garante que o banco de dados esteja atualizado ao iniciar o ambiente
+    command: ["sh", "-c", "if [ ! -d 'migrations' ]; then echo 'Pasta migrations não encontrada. Inicializando Flask-Migrate...'; flask db init; fi; echo 'Rodando migrações do banco de dados...'; flask db upgrade"]
+    restart: "no" # Garante que este contêiner não tente reiniciar
+
+# Define as redes usadas pelos serviços
+networks:
+  todolist:
+    driver: bridge # Rede bridge padrão
+
+# Define volumes nomeados para persistência de dados
+volumes:
+  db_data: # Volume para dados do banco de dados
+  app_instance_data: # Volume para a pasta instance da aplicação
