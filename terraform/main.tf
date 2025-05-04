@@ -3,13 +3,26 @@ provider "aws" {
   region = "us-east-1" # Defina a região da AWS que você está usando (ajuste conforme sua AWS Academy)
 }
 
+# Configura o backend S3 para armazenar o estado do Terraform
+terraform {
+  backend "s3" {
+    # bucket = "joao-marcelo-terraform-state-todolist" # <--- Precisa ser criado antes com "aws s3api create-bucket --bucket SEUNOME-terraform-state-todolist --region us-east-1"
+    key    = "hml/terraform.tfstate"             # Caminho dentro do bucket para o arquivo de estado
+    region = "us-east-1"                         # <--- Defina a região do seu bucket S3
+    # Configuração para bloqueio de estado com DynamoDB (recomendado)
+    dynamodb_table = "terraform-state-locking-todolist" # <--- Precisa ser criada antes com "aws dynamodb create-table --table-name terraform-state-locking-todolist --attribute-definitions AttributeName=LockID,AttributeType=S --key-schema AttributeName=LockID,KeyType=HASH --billing-mode PAY_PER_REQUEST"
+    # 
+    encrypt        = true                        # Criptografa o estado no S3
+  }
+}
+
 # Data source para obter a AMI mais recente do Ubuntu 24.04 LTS
 # Isso garante que você sempre use a versão mais recente do sistema operacional
 data "aws_ami" "ubuntu" {
   most_recent = true
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"] # Padrão de nome para Ubuntu 24.04 LTS
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"] # Padrão de nome para Ubuntu 24.04 LTS (ajustado conforme sua descoberta)
   }
   filter {
     name   = "virtualization-type"
@@ -19,19 +32,19 @@ data "aws_ami" "ubuntu" {
 }
 
 # Cria um par de chaves SSH para acesso à instância EC2
-# A chave privada correspondente DEVE ser armazenada como um GitHub Secret
+# Este recurso será criado em cada execução se não existir
 resource "aws_key_pair" "deployer_key" {
-  key_name   = "deployer-key-hml" # Nome da chave na AWS
+  key_name = "deployer-key-hml" # Nome da chave na AWS
   # A chave pública correspondente à chave privada armazenada no GitHub Secret
   # Você precisará gerar um par de chaves SSH localmente e colar a chave pública aqui.
   # Exemplo: ssh-keygen -t rsa -b 4096 -C "seu_email@example.com"
-  # Cole o conteúdo do arquivo .pub gerado aqui (ex: ~/.ssh/deployer-key-hml.pub)
-  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCnCIqCj662njuTA/DSftx9xBRRSxv7yeg1hlTwRDBZF40x87dT5ZNCNYsYEtAAwDXeuFKC7V5nLhfEV/Chde+RTxEbOJQVd6HKLebrxW+9WldoeWrCzwDugP5N+ViwDpHE1CORiqupVuvn5q3G4Ygt3kKLrEg7tEwrB/GDk5jF8O9H2fGA3VqpRKrmn9WjUE8Q3jExA0ktzA0BaQL+UoicxeU55Dkddsk9KS9adYjh9Z6cElumpW8/W2fEr1oJDfKf0DR4pmWLAFl9w8/qQuWeMnOf+dMlrn7Dg97yk75Rg/yNBK5l4/18WqwCTCITLsHiR48/LDI1HX1Qpn76yERyhmGczreQ0h4lLeQsSWrJrJC6jV+xUwKpjGk1mZs6zVSP3yyD6Fuc76ur1a+dNgUG2wwNJ2s1RP0thW4a3roqWT4j+5Fcl9S18COGGjtI5MxWeOxgXop7LYNu+cqqClrXbPUYWyHV194PzGttLtiN1atwFjieDx2+aU9uOqoONiGYArXyl/9h+L0rOTdPT9/I6+4sW1V0J5XuKqgXsu9vuGNAFhioyJZuHud6r093lqtKW4O20xnp1sQ8FZkeU8YDBdHT3e+4FnqBQu5eorDRA4TIByvXZfsydaNphtLWe/LEO8nrhr7dDPLbNwVt70ZxdybxJNq4QRuPg5/F0Wj3LQ== joao.marcelo@ufc.br"
+  # Cole o conteúdo COMPLETO do arquivo .pub gerado aqui (ex: ~/.ssh/deployer-key-hml.pub)
+  # Certifique-se de que NÃO há espaços em branco extras ou quebras de linha.
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCnCIqCj662njuTA/DSftx9xBRRSxv7yeg1hlTwRDBZF40x87dT5ZNCNYsYEtAAwDXeuFKC7V5nLhfEV/Chde+RTxEbOJQVd6HKLebrxW+9WldoeWrCzwDugP5N+ViwDpHE1CORiqupVuvn5q3G4Ygt3kKLrEg7tEwrB/GDk5jF8O9H2fGA3VqpRKrmn9WjUE8Q3jExA0ktzA0BaQL+UoicxeU55Dkddsk9KS9adYjh9Z6cElumpW8/W2fEr1oJDfKf0DR4pmWLAFl9w8/qQuWeMnOf+dMlrn7Dg97yk75Rg/yNBK5l4/18WqwCTCITLsHiR48/LDI1HX1Qpn76yERyhmGczreQ0h4lLeQsSWrJrJC6jV+xUwKpjGk1mZs6zVSP3yyD6Fuc76ur1a+dNgUG2wwNJ2s1RP0thW4a3roqWT4j+5Fcl9S18COGGjtI5MxWeOxgXop7LYNu+cqqClrXbPUYWyHV194PzGttLtiN1atwFjieDx2+aU9uOqoONiGYArXyl/9h+L0rOTdPT9/I6+4sW1V0J5XuKqgXsu9vuGNAFhioyJZuHud6r093lqtKW4O20xnp1sQ8FZkeU8YDBdHT3e+4FnqBQu5eorDRA4TIByvXZfsydaNphtLWe/LEO8nrhr7dDPLbNwVt70ZxdybxJNq4QRuPg5/F0Wj3LQ== joao.marcelo@ufc.br" # <--- COLE O CONTEÚDO EXATO DA SUA CHAVE PÚBLICA AQUI
 }
 
 # Cria um Security Group para a instância EC2
-# Permite tráfego SSH (porta 22) do seu IP (ou de qualquer lugar para simplificar no curso)
-# Permite tráfego HTTP (porta 80) de qualquer lugar para acessar a aplicação
+# Este recurso será criado em cada execução se não existir
 resource "aws_security_group" "hml_sg" {
   name        = "hml-security-group"
   description = "Allow SSH and HTTP traffic to HML instance"
@@ -74,8 +87,9 @@ resource "aws_instance" "hml_instance" {
   ami           = data.aws_ami.ubuntu.id # Usa a AMI do Ubuntu 24.04 encontrada
   instance_type = "t3.medium" # Tipo de instância conforme o plano
   key_name      = aws_key_pair.deployer_key.key_name # Associa o par de chaves criado
+  vpc_security_group_ids = [aws_security_group.hml_sg.id] # Referencia o ID do Security Group criado
+
   # subnet_id = "subnet-xxxxxxxxxxxxxxxxx" # Opcional: Especifique uma subnet se não usar a default
-  security_groups = [aws_security_group.hml_sg.name] # Associa o Security Group criado
 
   # User data para executar comandos na inicialização (opcional, mas útil para setup inicial)
   # user_data = <<-EOF
@@ -103,3 +117,11 @@ output "hml_key_pair_name" {
   description = "Name of the SSH key pair for HML instance"
   value       = aws_key_pair.deployer_key.key_name
 }
+
+# Define a saída do ID do Security Group usado
+output "hml_security_group_id" {
+  description = "ID of the Security Group used for HML instance"
+  value = aws_security_group.hml_sg.id
+}
+
+# REMOVIDOS: Outputs de Debug Temporários

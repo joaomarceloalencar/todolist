@@ -11,7 +11,7 @@ class DevelopmentConfig(Config):
 
 class HomologationConfig(Config):
     # DEBUG = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get('HML_DATABASE_URL') # Ler de variável de ambiente (AWS RDS)
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') # Ler de variável de ambiente (AWS RDS)
     # Configurações de logging, etc.
 
 class ProductionConfig(Config):
