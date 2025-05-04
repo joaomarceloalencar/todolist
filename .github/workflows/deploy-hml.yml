@@ -53,6 +53,8 @@ jobs:
       # Caminho onde a chave privada SSH será salva temporariamente no runner
       SSH_PRIVATE_KEY_PATH_RUNNER: "~/.ssh/deployer_key_hml.pem"
 
+      # Variável de ambiente para a branch que disparou o workflow
+      GITHUB_BRANCH: ${{ github.ref_name }} # <=== ADICIONADO
 
     # Passos que serão executados neste job
     steps:
@@ -152,7 +154,7 @@ jobs:
           # --extra-vars ...: Passa variáveis extras para o playbook (segredos da aplicação)
           ansible-playbook -i inventory.ini ${{ env.ANSIBLE_PLAYBOOK_BASENAME }} \
             --private-key ${{ env.SSH_PRIVATE_KEY_PATH_RUNNER }} \
-            --extra-vars "secret_key_hml=${{ env.SECRET_KEY_HML }}" \
+            --extra-vars "secret_key_hml=${{ env.SECRET_KEY_HML }} deploy_branch=${{ env.GITHUB_BRANCH }}" \
             -vvv 
         working-directory: ${{ env.ANSIBLE_DIR }} # Executa o comando na pasta 'ansible'
 
