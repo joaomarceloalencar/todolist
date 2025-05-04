@@ -39,7 +39,7 @@ resource "aws_key_pair" "deployer_key" {
   # Você precisará gerar um par de chaves SSH localmente e colar a chave pública aqui.
   # Exemplo: ssh-keygen -t rsa -b 4096 -C "seu_email@example.com"
   # Cole o conteúdo do arquivo .pub gerado aqui (ex: ~/.ssh/deployer-key-hml.pub)
-  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC1z8eE3OldFY2xpk5/UwJ8FyfemhFsKEg7KVsVzaynOB0D2kzRVZd6OC0iJiAHvMvo8Yxvs6dcMUJE5hiMrfd0uQGm51XeKOa/ORGI7GVrNGYKagcKsS5Mqyhvs8ljUAq7XzR53eNs1mXWbDrpG3LrFBS/6QHkFKYzXKfAP7RDjdwOE23Phv065Ki4Tg0f/yF6QUFYALAGgwRRR1c1sT3rt9RNo2BHRRz879HaVGGSOmBNxrmi7AG/av6I7vkxCoXhwm9vk6zTf+N+JWI+D7i8DeCKXUxJHS71VzDTiprXvsXKp1NMjarWtdqVSd4lHDAjhr/AT+2DnEQtEhmIhgf9ED5jEBWn5w+UF4hFkIJTVrjVuMbsOhvw8SXQ9EdSNN97kYvd22cW7wGUfXKivMQ7ztxrb04K" # <--- Cole sua chave pública aqui
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC1z8eE3OldFY2xpk5/UwJ8FyfemhFsKEg7KVsVzaynOB0D2kzRVZd6OC0iJiAHvMvo8Yxvs6dcMUJE5hiMrfd0uQGm51XeKOa/ORGI7GVrNGYKagcKsS5Mqyhvs8ljUAq7XzR53eNs1mXWbDrpG3LrFBS/6QHkFKYzXKfAP7RDjdwOE23Phv065Ki4Tg0f/yF6QUFYALAGgwRRR1c1sT3rt9RNo2BHRRz879HaVGGSOmBNxrmi7AG/av6I7vkxCoHhwm9vk6zTf+N+JWI+D7i8DeCKXUxJHS71VzDTiprXvsXKp1NMjarWtdqVSd4lHDAjhr/AT+2DnEQtEhmIhgf9ED5jEBWn5w+UF4hFkIJTVrjVuMbsOhvw8SXQ9EdSNN97kYvd22cW7wGUfXKivMQ7ztxrb04L" # <--- Cole sua chave pública aqui
 }
 
 # --- Fim Lógica para encontrar ou criar o par de chaves SSH ---
@@ -108,7 +108,8 @@ resource "aws_instance" "hml_instance" {
 
   # Associa o Security Group. Usa o ID do SG encontrado pelo data source OU o ID do SG criado pelo resource.
   # Usando a contagem do recurso para decidir qual ID usar.
-  security_groups = [aws_security_group.hml_sg.count > 0 ? aws_security_group.hml_sg[0].id : data.aws_security_group.existing_hml_sg.id] # <=== CORRIGIDO: Referência usando count
+  security_groups = [length(aws_security_group.hml_sg) > 0 ? aws_security_group.hml_sg[0].id : data.aws_security_group.existing_hml_sg.id] # <=== CORRIGIDO: Referência usando length()
+                                                                                                                                         # e acessando o ID do data source ou do primeiro item da lista do recurso
 
   # subnet_id = "subnet-xxxxxxxxxxxxxxxxx" # Opcional: Especifique uma subnet se não usar a default
 
@@ -145,5 +146,5 @@ output "hml_security_group_id" {
   description = "ID of the Security Group used for HML instance"
   # Usa o ID do SG encontrado pelo data source OU o ID do SG criado pelo resource.
   # Usando a contagem do recurso para decidir qual ID usar.
-  value = aws_security_group.hml_sg.count > 0 ? aws_security_group.hml_sg[0].id : data.aws_security_group.existing_hml_sg.id # <=== CORRIGIDO: Referência usando count
+  value = length(aws_security_group.hml_sg) > 0 ? aws_security_group.hml_sg[0].id : data.aws_security_group.existing_hml_sg.id # <=== CORRIGIDO: Referência usando length()
 }
