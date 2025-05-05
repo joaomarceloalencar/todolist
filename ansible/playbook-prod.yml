@@ -1,0 +1,148 @@
+# ansible/playbook-prod.yml
+# Playbook Ansible para configurar a instância EC2 de produção e fazer o deploy da aplicação
+
+- name: Configurar instância de produção e fazer deploy da aplicação
+  hosts: prod_instances # Define o grupo de hosts onde este playbook será executado (diferente de HML)
+  become: yes # Executa as tarefas com privilégios de superusuário (sudo)
+  gather_facts: yes # Coleta fatos sobre os hosts (informações do sistema)
+
+  vars:
+    # Variáveis que podem ser sobrescritas (ex: via linha de comando, group_vars, host_vars)
+    ansible_python_interpreter: /usr/bin/python3 # Garante o uso do Python 3 na instância remota
+    app_repo_url: "https://github.com/joaomarceloalencar/todolist.git" # Substituído pela URL do seu repositório
+    app_clone_path: "/opt/todolist" # Caminho onde o repositório será clonado na instância remota
+    # Caminhos relativos dentro do repositório clonado
+    app_code_path: "{{ app_clone_path }}/app" # Caminho para a pasta 'app' clonada
+    # Caminho local (no runner/máquina Ansible) do arquivo de config Nginx
+    nginx_conf_src: "../app/conf/default.conf" # Caminho local no runner (relativo à pasta ansible/)
+    nginx_conf_dest: "{{ app_code_path }}/conf/default.conf" # Caminho de destino na instância remota
+    docker_compose_file: "{{ app_code_path }}/docker-compose-prod.yml" # <=== Caminho para o arquivo docker-compose de PRODUÇÃO
+    prod_env_file_path: "{{ app_code_path }}/.env" # Caminho para o arquivo .env na instância remota
+
+    # Variáveis para credenciais e segredos (passadas para o Ansible via GitHub Actions Secrets)
+    # Estas variáveis DEVEM ser definidas no workflow do GitHub Actions
+    # Use variáveis passadas diretamente para a execução do Ansible, lendo dos GitHub Secrets.
+    # Ex: ansible-playbook ... --extra-vars "secret_key_prod={{ secrets.SECRET_KEY_PROD }} ..."
+
+    # Variáveis de ambiente para a aplicação PRODUÇÃO (serão escritas em um arquivo .env remoto)
+    # A URL do banco de dados será construída no workflow e passada como uma variável extra
+    prod_env_vars:
+      DATABASE_URL: "{{ database_url_prod }}" # <=== Lida da variável passada para o Ansible (URL completa do RDS)
+      SECRET_KEY: "{{ secret_key_prod }}" # <=== Lida da variável passada para o Ansible (Segredo para Prod)
+      FLASK_ENV: "production" # Ambiente de produção
+      FLASK_APP: "src/wsgi.py"
+      PYTHONPATH: "/app" # Caminho para o diretório que contém 'src' dentro do contêiner Docker
+      DEBUG: "False"
+
+    # Variável para a branch a ser clonada (passada do workflow do GitHub Actions)
+    deploy_branch: "main" # Valor padrão (será sobrescrito por extra-vars)
+
+    # Variáveis para detalhes de conexão do RDS (passadas do workflow do GitHub Actions)
+    # Usadas para a tarefa wait_for
+    rds_endpoint: "" # Endpoint do RDS
+    rds_port: "" # Porta do RDS
+
+  tasks:
+    - name: Atualizar cache de pacotes apt
+      apt:
+        update_cache: yes
+
+    - name: Instalar pacotes necessários para Docker
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+
+    - name: Adicionar chave GPG oficial do Docker
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Adicionar repositório APT do Docker
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu noble stable # Assumindo Ubuntu 24.04 Noble
+        state: present
+
+    - name: Instalar Docker Engine, containerd e Docker Compose (plugin)
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin # Instala o plugin docker compose (para o comando 'docker compose')
+        state: present
+        update_cache: yes
+
+    # Tarefa para garantir que o usuário 'ubuntu' (ou outro usuário SSH) possa rodar Docker sem sudo
+    - name: Adicionar usuário remoto ao grupo docker
+      user:
+        name: ubuntu # <--- Ajuste para o usuário SSH da sua instância se não for 'ubuntu'
+        groups: docker
+        append: yes
+
+    - name: Clonar o repositório da aplicação
+      ansible.builtin.git:
+        repo: "{{ app_repo_url }}"
+        dest: "{{ app_clone_path }}"
+        single_branch: yes
+        version: "{{ deploy_branch }}" # Usa a variável deploy_branch (será 'main' para produção)
+        # Se o repositório for privado, você precisará adicionar credenciais SSH ou HTTPS
+        key_file: "{{ ansible_env.HOME }}/.ssh/deployer_key_prod.pem" # Usa a chave privada SSH (assumindo que é a mesma para acesso à EC2)
+
+    # Tarefa para garantir que a pasta conf do Nginx exista no destino
+    - name: Criar pasta de configuração do Nginx na instância remota
+      ansible.builtin.file:
+        path: "{{ app_code_path }}/conf"
+        state: directory
+        mode: '0755'
+
+    # Tarefa para copiar o arquivo de configuração do Nginx
+    - name: Copiar arquivo de configuração do Nginx
+      ansible.builtin.copy:
+        src: "{{ nginx_conf_src }}" # Caminho local no runner
+        dest: "{{ nginx_conf_dest }}" # Caminho de destino na instância remota
+
+    # Tarefa para criar o arquivo .env na instância remota com as variáveis de PRODUÇÃO
+    - name: Criar arquivo .env com variáveis de ambiente para Produção
+      ansible.builtin.copy:
+        content: |
+          DATABASE_URL={{ prod_env_vars.DATABASE_URL }}
+          SECRET_KEY={{ prod_env_vars.SECRET_KEY }}
+          FLASK_ENV={{ prod_env_vars.FLASK_ENV }}
+          FLASK_APP={{ prod_env_vars.FLASK_APP }}
+          PYTHONPATH={{ prod_env_vars.PYTHONPATH }}
+          DEBUG={{ prod_env_vars.DEBUG }}
+        dest: "{{ prod_env_file_path }}" # Usa a variável para o caminho do .env
+        mode: '0600' # Permissões restritivas para o arquivo .env
+
+    # NOVO: Tarefa para aguardar até que o RDS esteja acessível
+    - name: Aguardar até que o RDS esteja acessível
+      ansible.builtin.wait_for:
+        host: "{{ rds_endpoint }}" # Endpoint do RDS (passado do workflow)
+        port: "{{ rds_port }}"     # Porta do RDS (passada do workflow)
+        timeout: 300               # Tempo máximo de espera em segundos (ajuste se necessário)
+        state: started             # Espera que a porta esteja aberta
+
+    # Tarefa para executar as migrações usando docker compose run (para produção)
+    - name: Executar migrações do banco de dados (Produção)
+      ansible.builtin.command:
+        # Navega para o diretório 'app' antes de executar o comando
+        # Usa --env-file para carregar variáveis de ambiente do .env de produção
+        # Executa apenas o serviço 'migrate' e o remove após a conclusão (--rm)
+        cmd: "docker compose -f {{ docker_compose_file }} --env-file {{ prod_env_file_path }} run --rm migrate"
+        chdir: "{{ app_code_path }}"
+      # Esta tarefa depende implicitamente da tarefa anterior (wait_for)
+
+    # Tarefa para executar o Docker Compose up para os serviços de longa duração (para produção)
+    - name: Executar docker compose up para deploy da aplicação (Produção)
+      ansible.builtin.command:
+        # Navega para o diretório 'app' antes de executar o comando docker compose
+        # Usa --env-file para carregar variáveis de ambiente do .env de produção
+        # Inicia os serviços 'app', 'nginx' em modo detached (-d) - SEM O SERVIÇO 'db'
+        cmd: "docker compose -f {{ docker_compose_file }} --env-file {{ prod_env_file_path }} up -d --build app nginx"
+        chdir: "{{ app_code_path }}" # Executa o comando a partir da pasta 'app' clonada
+      # Esta tarefa depende implicitamente da tarefa anterior (migrações)
+
