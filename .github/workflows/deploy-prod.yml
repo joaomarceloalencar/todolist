@@ -105,7 +105,7 @@ jobs:
       # O Terraform lerá as variáveis de ambiente TF_VAR_... para configurar o backend e as variáveis de entrada
       # Como TF_VAR_environment é "production", o backend usará a chave "production/terraform.tfstate"
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -backend-config="bucket=${TF_BUCKET}"
         working-directory: ${{ env.TERRAFORM_DIR }}
 
       # Passo 7: Cria um plano de execução do Terraform (opcional)
