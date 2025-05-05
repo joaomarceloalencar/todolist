@@ -43,7 +43,7 @@ jobs:
       DOCKER_COMPOSE_PROD_PATH: "app/docker-compose-prod.yml" # <=== Caminho para o arquivo de produção
 
       # Variável para o caminho COMPLETO do playbook Ansible (relativo à raiz do repo)
-      ANSIBLE_PLAYBOOK_PATH: "ansible/playbook-hml.yml" # <=== Usaremos o mesmo playbook, mas ele precisará lidar com a lógica de produção
+      ANSIBLE_PLAYBOOK_PATH: "ansible/playbook-prod.yml" # <=== Usaremos o mesmo playbook, mas ele precisará lidar com a lógica de produção
 
       # Variável para o caminho da pasta Terraform
       TERRAFORM_DIR: "terraform"
@@ -52,7 +52,7 @@ jobs:
       ANSIBLE_DIR: "ansible"
 
       # Variável para o NOME BASE do arquivo do playbook Ansible
-      ANSIBLE_PLAYBOOK_BASENAME: "playbook-hml.yml" # <=== Nome base do playbook
+      ANSIBLE_PLAYBOOK_BASENAME: "playbook-prod.yml" # <=== Nome base do playbook
 
       # Usuário SSH padrão para a instância EC2 (ajuste se necessário)
       SSH_USER: "ubuntu"
@@ -161,7 +161,6 @@ jobs:
             echo "RDS_PASSWORD=$RDS_PASSWORD" >> $GITHUB_OUTPUT
           fi
         working-directory: ${{ env.TERRAFORM_DIR }} # Executa o comando na pasta 'terraform'
-
 
       # Passo 10: Configura o SSH Agent e adiciona a chave privada
       # Permite que o Ansible se conecte à instância EC2 usando a chave privada
