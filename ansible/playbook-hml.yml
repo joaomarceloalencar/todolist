@@ -84,13 +84,11 @@
       ansible.builtin.git:
         repo: "{{ app_repo_url }}"
         dest: "{{ app_clone_path }}"
-        single_branch: yes
-        version: "{{ deploy_branch }}" 
-        # Se o repositório for privado, você precisará adicionar credenciais SSH ou HTTPS
-        # Use a chave privada SSH armazenada como GitHub Secret (passada para o Ansible)
-        key_file: "{{ ansible_env.HOME }}/.ssh/deployer_key_hml.pem" # Caminho onde a chave privada será copiada no runner e usada pelo Ansible
-        # Ou para HTTPS com token (menos seguro que SSH com chave):
-        # https_url: "https://{{ github_user }}:{{ github_token }}@github.com/SEU_USUARIO/SEU_REPOSITORIO.git"
+    
+    - name: Fazer checkout da branch de deploy
+      ansible.builtin.command:
+        cmd: "git checkout {{ deploy_branch }}"
+        chdir: "{{ app_clone_path }}" # Executa o comando no diretório clonado
 
     # --- Tarefas de Depuração de Variáveis ---
     - name: Debug - Exibir valor da variável secret_key
