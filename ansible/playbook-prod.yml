@@ -87,10 +87,11 @@
       ansible.builtin.git:
         repo: "{{ app_repo_url }}"
         dest: "{{ app_clone_path }}"
-        single_branch: yes
-        version: "{{ deploy_branch }}" # Usa a variável deploy_branch (será 'main' para produção)
-        # Se o repositório for privado, você precisará adicionar credenciais SSH ou HTTPS
-        key_file: "{{ ansible_env.HOME }}/.ssh/deployer_key_prod.pem" # Usa a chave privada SSH (assumindo que é a mesma para acesso à EC2)
+    
+    - name: Fazer checkout da branch de deploy
+      ansible.builtin.command:
+        cmd: "git checkout {{ deploy_branch }}"
+        chdir: "{{ app_clone_path }}" # Executa o comando no diretório clonado
 
     # Tarefa para garantir que a pasta conf do Nginx exista no destino
     - name: Criar pasta de configuração do Nginx na instância remota
