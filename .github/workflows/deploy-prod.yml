@@ -5,9 +5,9 @@ name: Deploy to Production
 on:
   push:
     branches:
-      - main # <=== Dispara em pushes para a branch principal
+     - main # <=== Dispara em pushes para a branch principal
 
-# Define um único job chamado 'deploy'
+     # Define um único job chamado 'deploy'
 jobs:
   deploy:
     # Define o tipo de runner que o job será executado
@@ -29,17 +29,21 @@ jobs:
       # Nome do bucket S3 para o Terraform 
       TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
 
+      TF_VAR_environment: "production"
+
       # Segredos da aplicação para PRODUÇÃO (lidos dos GitHub Secrets)
       # Estes DEVEM ser segredos diferentes dos de HML e Dev
       SECRET_KEY: ${{ secrets.SECRET_KEY_PROD }} # <=== Segredo para produção
       RDS_USERNAME_PROD: ${{ secrets.RDS_USERNAME_PROD }} # <=== Usuário do RDS de produção (Segredo)
       RDS_PASSWORD_PROD: ${{ secrets.RDS_PASSWORD_PROD }} # <=== Senha do RDS de produção (Segredo)
+      TF_VAR_rds_username_prod:  ${{ secrets.RDS_USERNAME_PROD }}
+      TF_VAR_rds_password_prod: ${{ secrets.RDS_PASSWORD_PROD }}
 
       # Variável para o caminho do arquivo docker-compose de PRODUÇÃO dentro do repositório clonado
       DOCKER_COMPOSE_PROD_PATH: "app/docker-compose-prod.yml" # <=== Caminho para o arquivo de produção
 
       # Variável para o caminho COMPLETO do playbook Ansible (relativo à raiz do repo)
-      ANSIBLE_PLAYBOOK_PATH: "ansible/playbook-hml.yml" # <=== Usaremos o mesmo playbook, mas ele precisará lidar com a lógica de produção
+      ANSIBLE_PLAYBOOK_PATH: "ansible/playbook-prod.yml" # <=== Usaremos o mesmo playbook, mas ele precisará lidar com a lógica de produção
 
       # Variável para o caminho da pasta Terraform
       TERRAFORM_DIR: "terraform"
@@ -48,7 +52,7 @@ jobs:
       ANSIBLE_DIR: "ansible"
 
       # Variável para o NOME BASE do arquivo do playbook Ansible
-      ANSIBLE_PLAYBOOK_BASENAME: "playbook-hml.yml" # <=== Nome base do playbook
+      ANSIBLE_PLAYBOOK_BASENAME: "playbook-prod.yml" # <=== Nome base do playbook
 
       # Usuário SSH padrão para a instância EC2 (ajuste se necessário)
       SSH_USER: "ubuntu"
@@ -98,13 +102,14 @@ jobs:
           aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+          aws-session-token: ${{ env.AWS_SESSION_TOKEN }} # Opcional, se usar credenciais temporárias
 
       # Passo 6: Inicializa o Terraform
       # Navega para o diretório do Terraform e executa terraform init
       # O Terraform lerá as variáveis de ambiente TF_VAR_... para configurar o backend e as variáveis de entrada
       # Como TF_VAR_environment é "production", o backend usará a chave "production/terraform.tfstate"
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -backend-config="bucket=${TF_BUCKET}"
         working-directory: ${{ env.TERRAFORM_DIR }}
 
       # Passo 7: Cria um plano de execução do Terraform (opcional)
@@ -130,29 +135,32 @@ jobs:
           echo "EC2 Instance Public IP: $EC2_IP"
           echo "EC2_IP=$EC2_IP" >> $GITHUB_OUTPUT # Define o IP como saída deste passo
 
-          # Obtém os detalhes de conexão do RDS (estes outputs só existem se o RDS foi criado)
-          # Usamos try() para lidar com o caso em que o output pode não existir (embora em produção ele deva existir)
-          RDS_ENDPOINT=$(try(terraform output -raw rds_endpoint_prod, ""))
-          RDS_PORT=$(try(terraform output -raw rds_port_prod, ""))
-          RDS_DB_NAME=$(try(terraform output -raw rds_db_name_prod, ""))
-          RDS_USERNAME=$(try(terraform output -raw rds_username_prod_output, "")) # Use o output de debug para o username
-          RDS_PASSWORD=$(try(terraform output -raw rds_password_prod_output, "")) # Use o output de debug para a senha
+          # Obtém os detalhes de conexão do RDS de produção.
+          # Estes outputs só existem se o ambiente for 'production'.
+          # Usamos Bash para verificar se o output existe/tem valor antes de usá-lo.
+          # Redirecionamos stderr para /dev/null para evitar que 'terraform output' falhe o script se o output não existir.
+          RDS_ENDPOINT=$(terraform output -raw rds_endpoint_prod 2>/dev/null || echo "")
+          RDS_PORT=$(terraform output -raw rds_port_prod 2>/dev/null || echo "")
+          RDS_DB_NAME=$(terraform output -raw rds_db_name_prod 2>/dev/null || echo "")
+          # Use os outputs de debug para o username e password, se existirem
+          RDS_USERNAME=$(terraform output -raw rds_username_prod_output 2>/dev/null || echo "")
+          RDS_PASSWORD=$(terraform output -raw rds_password_prod_output 2>/dev/null || echo "")
+
 
           echo "RDS Endpoint: $RDS_ENDPOINT"
           echo "RDS Port: $RDS_PORT"
           echo "RDS DB Name: $RDS_DB_NAME"
-          # NÃO imprima segredos diretamente nos logs, mesmo que mascarados
-          # echo "RDS Username: $RDS_USERNAME"
-          # echo "RDS Password: $RDS_PASSWORD"
 
           # Define os detalhes do RDS como saídas deste passo para uso em passos subsequentes
-          echo "RDS_ENDPOINT=$RDS_ENDPOINT" >> $GITHUB_OUTPUT
-          echo "RDS_PORT=$RDS_PORT" >> $GITHUB_OUTPUT
-          echo "RDS_DB_NAME=$RDS_DB_NAME" >> $GITHUB_OUTPUT
-          echo "RDS_USERNAME=$RDS_USERNAME" >> $GITHUB_OUTPUT # Passe o username como saída
-          echo "RDS_PASSWORD=$RDS_PASSWORD" >> $GITHUB_OUTPUT # Passe a senha como saída
+          # Apenas define as saídas se os valores não forem vazios (para evitar passar strings vazias)
+          if [ -n "$RDS_ENDPOINT" ]; then
+            echo "RDS_ENDPOINT=$RDS_ENDPOINT" >> $GITHUB_OUTPUT
+            echo "RDS_PORT=$RDS_PORT" >> $GITHUB_OUTPUT
+            echo "RDS_DB_NAME=$RDS_DB_NAME" >> $GITHUB_OUTPUT
+            echo "RDS_USERNAME=$RDS_USERNAME" >> $GITHUB_OUTPUT
+            echo "RDS_PASSWORD=$RDS_PASSWORD" >> $GITHUB_OUTPUT
+          fi
         working-directory: ${{ env.TERRAFORM_DIR }} # Executa o comando na pasta 'terraform'
-
 
       # Passo 10: Configura o SSH Agent e adiciona a chave privada
       # Permite que o Ansible se conecte à instância EC2 usando a chave privada
@@ -180,11 +188,15 @@ jobs:
         run: |
           # Constrói a string de conexão do banco de dados para o RDS
           # Usamos os outputs do Terraform obtidos no passo 9
-          DATABASE_URL="postgresql://${{ steps.get_outputs.outputs.RDS_USERNAME }}:${{ steps.get_outputs.outputs.RDS_PASSWORD }}@${{ steps.get_outputs.outputs.RDS_ENDPOINT }}:${{ steps.get_outputs.outputs.RDS_PORT }}/${{ steps.get_outputs.outputs.RDS_DB_NAME }}"
+          # Apenas constrói a URL se o endpoint do RDS não for vazio (ou seja, se o RDS foi criado)
+          DATABASE_URL=""
+          if [ -n "${{ steps.get_outputs.outputs.RDS_ENDPOINT }}" ]; then
+            DATABASE_URL="postgresql://${{ steps.get_outputs.outputs.RDS_USERNAME }}:${{ steps.get_outputs.outputs.RDS_PASSWORD }}@${{ steps.get_outputs.outputs.RDS_ENDPOINT }}:${{ steps.get_outputs.outputs.RDS_PORT }}/${{ steps.get_outputs.outputs.RDS_DB_NAME }}"
+          fi
 
           ansible-playbook -i inventory.ini ${{ env.ANSIBLE_PLAYBOOK_BASENAME }} \
             --private-key ${{ env.SSH_PRIVATE_KEY_PATH_RUNNER }} \
-            --extra-vars "secret_key_prod=${{ env.SECRET_KEY }} deploy_branch=${{ env.GITHUB_BRANCH }} database_url_prod=${DATABASE_URL}" \
+            --extra-vars "secret_key_prod=${{secrets.SECRET_KEY_PROD }} deploy_branch=${{ env.GITHUB_BRANCH }} database_url_prod=${DATABASE_URL} rds_endpoint=${{ steps.get_outputs.outputs.RDS_ENDPOINT }} rds_port=${{ steps.get_outputs.outputs.RDS_PORT }}" \
             -vvv # Opcional: -vvv para saída mais detalhada do Ansible (útil para depuração)
         working-directory: ${{ env.ANSIBLE_DIR }}
 
