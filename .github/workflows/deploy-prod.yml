@@ -188,11 +188,15 @@ jobs:
         run: |
           # Constrói a string de conexão do banco de dados para o RDS
           # Usamos os outputs do Terraform obtidos no passo 9
-          DATABASE_URL="postgresql://${{ steps.get_outputs.outputs.RDS_USERNAME }}:${{ steps.get_outputs.outputs.RDS_PASSWORD }}@${{ steps.get_outputs.outputs.RDS_ENDPOINT }}:${{ steps.get_outputs.outputs.RDS_PORT }}/${{ steps.get_outputs.outputs.RDS_DB_NAME }}"
+          # Apenas constrói a URL se o endpoint do RDS não for vazio (ou seja, se o RDS foi criado)
+          DATABASE_URL=""
+          if [ -n "${{ steps.get_outputs.outputs.RDS_ENDPOINT }}" ]; then
+            DATABASE_URL="postgresql://${{ steps.get_outputs.outputs.RDS_USERNAME }}:${{ steps.get_outputs.outputs.RDS_PASSWORD }}@${{ steps.get_outputs.outputs.RDS_ENDPOINT }}:${{ steps.get_outputs.outputs.RDS_PORT }}/${{ steps.get_outputs.outputs.RDS_DB_NAME }}"
+          fi
 
           ansible-playbook -i inventory.ini ${{ env.ANSIBLE_PLAYBOOK_BASENAME }} \
             --private-key ${{ env.SSH_PRIVATE_KEY_PATH_RUNNER }} \
-            --extra-vars "secret_key_prod=${{ env.SECRET_KEY }} deploy_branch=${{ env.GITHUB_BRANCH }} database_url_prod=${DATABASE_URL}" \
+            --extra-vars "secret_key_prod=${{secrets.SECRET_KEY_PROD }} deploy_branch=${{ env.GITHUB_BRANCH }} database_url_prod=${DATABASE_URL} rds_endpoint=${{ steps.get_outputs.outputs.RDS_ENDPOINT }} rds_port=${{ steps.get_outputs.outputs.RDS_PORT }}" \
             -vvv # Opcional: -vvv para saída mais detalhada do Ansible (útil para depuração)
         working-directory: ${{ env.ANSIBLE_DIR }}
 
