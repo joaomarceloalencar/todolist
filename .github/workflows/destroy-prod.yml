@@ -1,5 +1,5 @@
 # Nome do workflow
-name: Destroy Homologation Infrastructure
+name: Destroy Production Infrastructure
 
 # Gatilho do workflow: acionado manualmente
 on:
@@ -13,7 +13,7 @@ jobs:
 
     # Define o ambiente de deploy no GitHub (opcional, mas boa prática)
     # Use o mesmo ambiente de deploy para aplicar regras de proteção e segredos
-    environment: homologation
+    environment: production
 
     # Define variáveis de ambiente para o job.
     # Segredos são acessados usando ${{ secrets.NOME_DO_SEGREDO }}
@@ -25,8 +25,7 @@ jobs:
       AWS_REGION: "us-east-1" # <--- Defina a região da AWS (ajuste conforme sua AWS Academy)
       TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
 
-      TF_VAR_environment: "homologation"
-     
+      TF_VAR_environment: "production"
 
       # Variável para o caminho da pasta Terraform
       TERRAFORM_DIR: "terraform"
