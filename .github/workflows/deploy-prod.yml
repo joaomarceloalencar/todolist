@@ -5,8 +5,8 @@ name: Deploy to Production
 on:
   push:
     branches:
-      - main # <=== Dispara em pushes para a branch principal
-
+     #- main # <=== Dispara em pushes para a branch principal
+     - feature-prod
 # Define um único job chamado 'deploy'
 jobs:
   deploy:
