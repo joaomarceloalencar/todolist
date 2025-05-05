@@ -25,6 +25,11 @@ jobs:
       AWS_REGION: "us-east-1" # <--- Defina a região da AWS (ajuste conforme sua AWS Academy)
       TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
 
+      TF_VAR_environment: "homologation"
+      # Valores que não serão usados nesta implantação, mas são necessários para o Terraform.
+      TF_VAR_rds_username_prod: "todolist" 
+      TF_VAR_rds_password_prod: "todolist"
+
       # Variável para o caminho da pasta Terraform
       TERRAFORM_DIR: "terraform"
 

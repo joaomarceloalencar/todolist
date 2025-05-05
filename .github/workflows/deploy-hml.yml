@@ -29,6 +29,12 @@ jobs:
       # Nome do bucket S3 para o Terraform 
       TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
 
+      TF_VAR_environment: "homologation"
+      # Valores que não serão usados nesta implantação, mas são necessários para o Terraform.
+      TF_VAR_rds_username_prod: "todolist" 
+      TF_VAR_rds_password_prod: "todolist" 
+
+
       # Segredos da aplicação para HML (lidos dos GitHub Secrets)
       SECRET_KEY: ${{ secrets.SECRET_KEY_HML }}
 
@@ -118,8 +124,8 @@ jobs:
       - name: Get EC2 Public IP
         id: get_ip # Atribui um ID a este passo para referenciar sua saída
         run: |
-          # Obtém o valor da saída 'hml_instance_public_ip' do Terraform
-          EC2_IP=$(terraform output -raw hml_instance_public_ip)
+          # Obtém o valor da saída 'ap_instance_public_ip' do Terraform
+          EC2_IP=$(terraform output -raw app_instance_public_ip)
           # Imprime o IP (opcional)
           echo "EC2 Instance Public IP: $EC2_IP"
           # Define o IP como uma saída deste passo para uso em passos subsequentes
