@@ -29,16 +29,15 @@ jobs:
       # Nome do bucket S3 para o Terraform 
       TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
 
+      TF_VAR_environment: "homologation"
+
       # Segredos da aplicação para PRODUÇÃO (lidos dos GitHub Secrets)
       # Estes DEVEM ser segredos diferentes dos de HML e Dev
       SECRET_KEY: ${{ secrets.SECRET_KEY_PROD }} # <=== Segredo para produção
       RDS_USERNAME_PROD: ${{ secrets.RDS_USERNAME_PROD }} # <=== Usuário do RDS de produção (Segredo)
       RDS_PASSWORD_PROD: ${{ secrets.RDS_PASSWORD_PROD }} # <=== Senha do RDS de produção (Segredo)
-
-      TF_VAR_environment: "homologation"
       TF_VAR_rds_username_prod:  ${{ secrets.RDS_USERNAME_PROD }}
       TF_VAR_rds_password_prod: ${{ secrets.RDS_PASSWORD_PROD }}
-
 
       # Variável para o caminho do arquivo docker-compose de PRODUÇÃO dentro do repositório clonado
       DOCKER_COMPOSE_PROD_PATH: "app/docker-compose-prod.yml" # <=== Caminho para o arquivo de produção
@@ -136,27 +135,31 @@ jobs:
           echo "EC2 Instance Public IP: $EC2_IP"
           echo "EC2_IP=$EC2_IP" >> $GITHUB_OUTPUT # Define o IP como saída deste passo
 
-          # Obtém os detalhes de conexão do RDS (estes outputs só existem se o RDS foi criado)
-          # Usamos try() para lidar com o caso em que o output pode não existir (embora em produção ele deva existir)
-          RDS_ENDPOINT=$(try(terraform output -raw rds_endpoint_prod, ""))
-          RDS_PORT=$(try(terraform output -raw rds_port_prod, ""))
-          RDS_DB_NAME=$(try(terraform output -raw rds_db_name_prod, ""))
-          RDS_USERNAME=$(try(terraform output -raw rds_username_prod_output, "")) # Use o output de debug para o username
-          RDS_PASSWORD=$(try(terraform output -raw rds_password_prod_output, "")) # Use o output de debug para a senha
+          # Obtém os detalhes de conexão do RDS de produção.
+          # Estes outputs só existem se o ambiente for 'production'.
+          # Usamos Bash para verificar se o output existe/tem valor antes de usá-lo.
+          # Redirecionamos stderr para /dev/null para evitar que 'terraform output' falhe o script se o output não existir.
+          RDS_ENDPOINT=$(terraform output -raw rds_endpoint_prod 2>/dev/null || echo "")
+          RDS_PORT=$(terraform output -raw rds_port_prod 2>/dev/null || echo "")
+          RDS_DB_NAME=$(terraform output -raw rds_db_name_prod 2>/dev/null || echo "")
+          # Use os outputs de debug para o username e password, se existirem
+          RDS_USERNAME=$(terraform output -raw rds_username_prod_output 2>/dev/null || echo "")
+          RDS_PASSWORD=$(terraform output -raw rds_password_prod_output 2>/dev/null || echo "")
+
 
           echo "RDS Endpoint: $RDS_ENDPOINT"
           echo "RDS Port: $RDS_PORT"
           echo "RDS DB Name: $RDS_DB_NAME"
-          # NÃO imprima segredos diretamente nos logs, mesmo que mascarados
-          # echo "RDS Username: $RDS_USERNAME"
-          # echo "RDS Password: $RDS_PASSWORD"
 
           # Define os detalhes do RDS como saídas deste passo para uso em passos subsequentes
-          echo "RDS_ENDPOINT=$RDS_ENDPOINT" >> $GITHUB_OUTPUT
-          echo "RDS_PORT=$RDS_PORT" >> $GITHUB_OUTPUT
-          echo "RDS_DB_NAME=$RDS_DB_NAME" >> $GITHUB_OUTPUT
-          echo "RDS_USERNAME=$RDS_USERNAME" >> $GITHUB_OUTPUT # Passe o username como saída
-          echo "RDS_PASSWORD=$RDS_PASSWORD" >> $GITHUB_OUTPUT # Passe a senha como saída
+          # Apenas define as saídas se os valores não forem vazios (para evitar passar strings vazias)
+          if [ -n "$RDS_ENDPOINT" ]; then
+            echo "RDS_ENDPOINT=$RDS_ENDPOINT" >> $GITHUB_OUTPUT
+            echo "RDS_PORT=$RDS_PORT" >> $GITHUB_OUTPUT
+            echo "RDS_DB_NAME=$RDS_DB_NAME" >> $GITHUB_OUTPUT
+            echo "RDS_USERNAME=$RDS_USERNAME" >> $GITHUB_OUTPUT
+            echo "RDS_PASSWORD=$RDS_PASSWORD" >> $GITHUB_OUTPUT
+          fi
         working-directory: ${{ env.TERRAFORM_DIR }} # Executa o comando na pasta 'terraform'
 
 
