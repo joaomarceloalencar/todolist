@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - hml
+      - feature/* # Apenas para testar mais rápido.
 
 # Define um único job chamado 'deploy'
 jobs:
@@ -28,6 +29,12 @@ jobs:
 
       # Nome do bucket S3 para o Terraform 
       TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
+
+      TF_VAR_environment: "homologation"
+      # Valores que não serão usados nesta implantação, mas são necessários para o Terraform.
+      TF_VAR_rds_username_prod: "todolist" 
+      TF_VAR_rds_password_prod: "todolist" 
+
 
       # Segredos da aplicação para HML (lidos dos GitHub Secrets)
       SECRET_KEY: ${{ secrets.SECRET_KEY_HML }}
