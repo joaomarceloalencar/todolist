@@ -87,11 +87,6 @@
       ansible.builtin.git:
         repo: "{{ app_repo_url }}"
         dest: "{{ app_clone_path }}"
-    
-    - name: Fazer checkout da branch de deploy
-      ansible.builtin.command:
-        cmd: "git checkout {{ deploy_branch }}"
-        chdir: "{{ app_clone_path }}" # Executa o comando no diretório clonado
 
     # Tarefa para garantir que a pasta conf do Nginx exista no destino
     - name: Criar pasta de configuração do Nginx na instância remota
