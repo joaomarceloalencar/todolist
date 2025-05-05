@@ -125,8 +125,8 @@ jobs:
       - name: Get EC2 Public IP
         id: get_ip # Atribui um ID a este passo para referenciar sua saída
         run: |
-          # Obtém o valor da saída 'hml_instance_public_ip' do Terraform
-          EC2_IP=$(terraform output -raw hml_instance_public_ip)
+          # Obtém o valor da saída 'ap_instance_public_ip' do Terraform
+          EC2_IP=$(terraform output -raw app_instance_public_ip)
           # Imprime o IP (opcional)
           echo "EC2 Instance Public IP: $EC2_IP"
           # Define o IP como uma saída deste passo para uso em passos subsequentes
