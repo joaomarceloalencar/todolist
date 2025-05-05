@@ -5,8 +5,7 @@ name: Deploy to Homologation
 on:
   push:
     branches:
-      #- hml
-      - feature-prod
+      - hml
 
 # Define um único job chamado 'deploy'
 jobs:
