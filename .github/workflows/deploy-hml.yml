@@ -25,6 +25,8 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }} # Opcional, se usar credenciais temporárias
       AWS_REGION: "us-east-1" # <--- Defina a região da AWS (ajuste conforme sua AWS Academy)
+
+      # Nome do bucket S3 para o Terraform 
       TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
 
       # Segredos da aplicação para HML (lidos dos GitHub Secrets)
@@ -37,10 +39,10 @@ jobs:
       ANSIBLE_PLAYBOOK_PATH: "ansible/playbook-hml.yml"
 
       # Variável para o caminho da pasta Ansible (corrigindo o erro de validação)
-      ANSIBLE_DIR: "ansible" # <=== ADICIONADO: Diretório do Ansible
+      ANSIBLE_DIR: "ansible" 
 
       # Variável para o NOME BASE do arquivo do playbook Ansible
-      ANSIBLE_PLAYBOOK_BASENAME: "playbook-hml.yml" # <=== ADICIONADO: Nome base do playbook
+      ANSIBLE_PLAYBOOK_BASENAME: "playbook-hml.yml" 
 
       # Variável de ambiente para passar opções SSH para o cliente SSH do Ansible
       ANSIBLE_SSH_ARGS: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
@@ -55,8 +57,8 @@ jobs:
       SSH_PRIVATE_KEY_PATH_RUNNER: "~/.ssh/deployer_key_hml.pem"
 
       # Variável de ambiente para a branch que disparou o workflow
-      GITHUB_BRANCH: ${{ github.ref_name }} # <=== ADICIONADO
-
+      GITHUB_BRANCH: ${{ github.ref_name }} 
+      
     # Passos que serão executados neste job
     steps:
       # Passo 1: Faz o checkout do código do repositório

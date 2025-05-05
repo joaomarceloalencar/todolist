@@ -35,6 +35,9 @@
       PYTHONPATH: "/app" # Caminho para o diretório que contém 'src' dentro do contêiner Docker
       DEBUG: "False"
 
+    # Variável para a branch a ser clonada (passada do workflow do GitHub Actions)
+    deploy_branch: "hml" # Valor padrão (será sobrescrito por extra-vars)
+
   tasks:
     - name: Atualizar cache de pacotes apt
       apt:
