@@ -40,7 +40,7 @@ services:
       # Estas variáveis DEVEM ser passadas para o Ansible e definidas no ambiente do contêiner
       # A URL do banco de dados será para o RDS externo (lida do .env)
       DATABASE_URL: ${DATABASE_URL} # <=== Lendo de variável de ambiente (URL do RDS)
-      SECRET_KEY: ${SECRET_KEY_PROD} # <=== Lendo de variável de ambiente (Segredo para Prod)
+      SECRET_KEY: ${SECRET_KEY} # <=== Lendo de variável de ambiente (Segredo para Prod)
       FLASK_ENV: production # Define o ambiente para a fábrica (config.py)
       FLASK_APP: src/wsgi.py # Ponto de entrada da aplicação
       PYTHONPATH: /app/src # Inclui /app/src no caminho de importação do Python
@@ -62,23 +62,11 @@ services:
       # Passa as mesmas variáveis de ambiente de BD que o serviço 'app' precisa
       # A URL do banco de dados será para o RDS externo (lida do .env)
       DATABASE_URL: ${DATABASE_URL} # <=== Lendo de variável de ambiente (URL do RDS)
-      SECRET_KEY: ${SECRET_KEY_PROD} # <=== Lendo de variável de ambiente (Segredo para Prod)
+      SECRET_KEY: ${SECRET_KEY} # <=== Lendo de variável de ambiente (Segredo para Prod)
       FLASK_ENV: production # Define o ambiente correto para carregar a config do BD
       FLASK_APP: src/wsgi.py # Testes precisam saber onde está a app factory
       PYTHONPATH: /app/src # Inclui /app/src no caminho de importação do Python
       # pytest pode precisar de outras variáveis de ambiente, se houver
-    depends_on:
-      # A migração agora depende apenas da rede estar pronta, não de um serviço 'db' local
-      # Precisamos garantir que a instância EC2 possa se conectar ao RDS externo.
-      # Isso é configurado no Security Group do RDS (permitindo tráfego do SG da EC2).
-      # Não há uma dependência direta de serviço Docker aqui, apenas dependência de rede/conectividade externa.
-      # Para garantir que o RDS esteja acessível, podemos adicionar um delay ou wait_for no Ansible playbook antes de rodar a migração.
-      # No Docker Compose, a dependência pode ser apenas da rede ou de um serviço dummy se necessário.
-      # Por simplicidade, vamos remover a dependência de serviço aqui e gerenciar o wait no Ansible.
-      # db: # REMOVIDO: Dependência do serviço 'db' local
-      #   condition: service_healthy
-      # dependência implícita de rede/conectividade
-      - app # O serviço migrate ainda depende do app para fins de orquestração no Ansible playbook (rodar antes do app principal)
     networks:
       - app_network # Conecta à rede
     # COMANDO: Verifica se a pasta migrations existe e inicializa se não, depois roda o upgrade
