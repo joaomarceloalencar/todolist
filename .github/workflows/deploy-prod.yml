@@ -29,7 +29,7 @@ jobs:
       # Nome do bucket S3 para o Terraform 
       TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
 
-      TF_VAR_environment: "homologation"
+      TF_VAR_environment: "production"
 
       # Segredos da aplicação para PRODUÇÃO (lidos dos GitHub Secrets)
       # Estes DEVEM ser segredos diferentes dos de HML e Dev
