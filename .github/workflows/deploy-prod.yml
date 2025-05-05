@@ -35,6 +35,11 @@ jobs:
       RDS_USERNAME_PROD: ${{ secrets.RDS_USERNAME_PROD }} # <=== Usuário do RDS de produção (Segredo)
       RDS_PASSWORD_PROD: ${{ secrets.RDS_PASSWORD_PROD }} # <=== Senha do RDS de produção (Segredo)
 
+      TF_VAR_environment: "homologation"
+      TF_VAR_rds_username_prod:  ${{ secrets.RDS_USERNAME_PROD }}
+      TF_VAR_rds_password_prod: ${{ secrets.RDS_PASSWORD_PROD }}
+
+
       # Variável para o caminho do arquivo docker-compose de PRODUÇÃO dentro do repositório clonado
       DOCKER_COMPOSE_PROD_PATH: "app/docker-compose-prod.yml" # <=== Caminho para o arquivo de produção
 
