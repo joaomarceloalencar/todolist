@@ -27,6 +27,14 @@ jobs:
 
       TF_VAR_environment: "production"
 
+      # Segredos da aplicação para PRODUÇÃO (lidos dos GitHub Secrets)
+      # Estes DEVEM ser segredos diferentes dos de HML e Dev
+      SECRET_KEY: ${{ secrets.SECRET_KEY_PROD }} # <=== Segredo para produção
+      RDS_USERNAME_PROD: ${{ secrets.RDS_USERNAME_PROD }} # <=== Usuário do RDS de produção (Segredo)
+      RDS_PASSWORD_PROD: ${{ secrets.RDS_PASSWORD_PROD }} # <=== Senha do RDS de produção (Segredo)
+      TF_VAR_rds_username_prod:  ${{ secrets.RDS_USERNAME_PROD }}
+      TF_VAR_rds_password_prod: ${{ secrets.RDS_PASSWORD_PROD }}
+      
       # Variável para o caminho da pasta Terraform
       TERRAFORM_DIR: "terraform"
 
