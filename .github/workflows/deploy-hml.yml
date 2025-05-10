@@ -29,6 +29,7 @@ jobs:
       # Nome do bucket S3 para o Terraform 
       TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
       TF_VAR_environment: "homologation"
+      TF_VAR_public_key: ${{ secrets.SSH_PUBLIC_KEY }} # Chave pública SSH (lida dos GitHub Secrets)
 
       # Valores que não serão usados nesta implantação, mas são necessários para o Terraform.
       RDS_USERNAME_PROD: "todolist" 
