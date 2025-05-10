@@ -23,6 +23,11 @@ variable "environment" {
   # Pode definir um valor padrão se necessário, mas é melhor forçar a definição
 }
 
+variable "public_key" {
+  description = "Chave pública a ser instalada na instância.."
+  type        = string
+}
+
 # Data source para obter a AMI mais recente do Ubuntu 24.04 LTS
 # Isso garante que você sempre use a versão mais recente do sistema operacional
 data "aws_ami" "ubuntu" {
@@ -47,7 +52,7 @@ resource "aws_key_pair" "deployer_key" {
   # Exemplo: ssh-keygen -t rsa -b 4096 -C "seu_email@example.com"
   # Cole o conteúdo COMPLETO do arquivo .pub gerado aqui (ex: ~/.ssh/deployer-key-hml.pub)
   # Certifique-se de que NÃO há espaços em branco extras ou quebras de linha.
-  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCnCIqCj662njuTA/DSftx9xBRRSxv7yeg1hlTwRDBZF40x87dT5ZNCNYsYEtAAwDXeuFKC7V5nLhfEV/Chde+RTxEbOJQVd6HKLebrxW+9WldoeWrCzwDugP5N+ViwDpHE1CORiqupVuvn5q3G4Ygt3kKLrEg7tEwrB/GDk5jF8O9H2fGA3VqpRKrmn9WjUE8Q3jExA0ktzA0BaQL+UoicxeU55Dkddsk9KS9adYjh9Z6cElumpW8/W2fEr1oJDfKf0DR4pmWLAFl9w8/qQuWeMnOf+dMlrn7Dg97yk75Rg/yNBK5l4/18WqwCTCITLsHiR48/LDI1HX1Qpn76yERyhmGczreQ0h4lLeQsSWrJrJC6jV+xUwKpjGk1mZs6zVSP3yyD6Fuc76ur1a+dNgUG2wwNJ2s1RP0thW4a3roqWT4j+5Fcl9S18COGGjtI5MxWeOxgXop7LYNu+cqqClrXbPUYWyHV194PzGttLtiN1atwFjieDx2+aU9uOqoONiGYArXyl/9h+L0rOTdPT9/I6+4sW1V0J5XuKqgXsu9vuGNAFhioyJZuHud6r093lqtKW4O20xnp1sQ8FZkeU8YDBdHT3e+4FnqBQu5eorDRA4TIByvXZfsydaNphtLWe/LEO8nrhr7dDPLbNwVt70ZxdybxJNq4QRuPg5/F0Wj3LQ== joao.marcelo@ufc.br" # <--- COLE O CONTEÚDO EXATO DA SUA CHAVE PÚBLICA AQUI
+  public_key = "${var.public_key}" # Substitua pelo conteúdo da chave pública
 }
 
 # Cria um Security Group para a instância EC2
