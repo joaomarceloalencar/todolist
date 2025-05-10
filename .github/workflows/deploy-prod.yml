@@ -28,16 +28,17 @@ jobs:
 
       # Nome do bucket S3 para o Terraform 
       TF_BUCKET: ${{ secrets.TF_BUCKET }} # Nome do bucket S3 para o Terraform (lido dos GitHub Secrets)
-
       TF_VAR_environment: "production"
+      TF_VAR_public_key: ${{ secrets.SSH_PUBLIC_KEY }} # Chave pública SSH (lida dos GitHub Secrets)
 
-      # Segredos da aplicação para PRODUÇÃO (lidos dos GitHub Secrets)
       # Estes DEVEM ser segredos diferentes dos de HML e Dev
-      SECRET_KEY: ${{ secrets.SECRET_KEY_PROD }} # <=== Segredo para produção
       RDS_USERNAME_PROD: ${{ secrets.RDS_USERNAME_PROD }} # <=== Usuário do RDS de produção (Segredo)
       RDS_PASSWORD_PROD: ${{ secrets.RDS_PASSWORD_PROD }} # <=== Senha do RDS de produção (Segredo)
       TF_VAR_rds_username_prod:  ${{ secrets.RDS_USERNAME_PROD }}
       TF_VAR_rds_password_prod: ${{ secrets.RDS_PASSWORD_PROD }}
+
+      # Segredos da aplicação para PRODUÇÃO (lidos dos GitHub Secrets)
+      SECRET_KEY: ${{ secrets.SECRET_KEY_PROD }} # <=== Segredo para produção
 
       # Variável para o caminho do arquivo docker-compose de PRODUÇÃO dentro do repositório clonado
       DOCKER_COMPOSE_PROD_PATH: "app/docker-compose-prod.yml" # <=== Caminho para o arquivo de produção
